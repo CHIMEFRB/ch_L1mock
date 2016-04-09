@@ -1,4 +1,5 @@
 setuptools>=0.7
 numpy>=1.6.1
 Cython>=0.19
-h5py>=2.4.0
+h5py>=2.5.0
+bitshuffle>=0.2.0
