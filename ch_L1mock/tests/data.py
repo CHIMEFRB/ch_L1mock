@@ -1,10 +1,11 @@
 """
-Generate format defining test data.
+Module for managing and generating test data.
 
 """
 
 
 import os
+import glob
 from os import path
 
 import numpy as np
@@ -15,6 +16,14 @@ import bitshuffle.h5 as bshufh5
 from ..constants import ADC_SAMPLE_RATE, NSAMP_FPGA_FFT
 
 
+# Constants
+# ---------
+
+
+TEST_DATA_DIR = path.join(path.dirname(__file__), 'data')
+TEST_DATA_FILES = glob.glob(path.join(TEST_DATA_DIR, '*.h5'))
+
+
 TIME_PER_PACKET = NSAMP_FPGA_FFT / ADC_SAMPLE_RATE
 # Gives ~1.3ms cadence.  Needs to be multiple of 256: 16 for upchannelization
 # and 16 for SSE square accumulation.
@@ -22,7 +31,7 @@ PACKETS_PER_INTEGRATION = 512
 
 TIME_PER_INTEGRATION = TIME_PER_PACKET * PACKETS_PER_INTEGRATION
 
-# How much data to generate.
+# Amount of test data.
 TOTAL_TIME = 100.    # Approximate
 NFREQ = 128
 NPOL = 2
@@ -32,16 +41,29 @@ INTEGRATIONS_PER_FILE = CHUNK[2] * 64
 
 
 
-def generate():
+def generate(outdir=None):
+    """Generates test data.
+
+    Data is just Gaussian random numbers with roughly the expected offset and
+    amplitude.
+
+    By default, data is generated in a subdirectory of the `tests` module. For
+    system installations users will probably not have write permissions to this
+    directory and thus gereration will fail. However, this script is run on
+    installation, so users should not need to re-run it.
+
+    """
+
+    if not outdir:
+        outdir = TEST_DATA_DIR
 
     # Generate some metadata.
     freq = ADC_SAMPLE_RATE - ADC_SAMPLE_RATE / NFREQ * np.arange(NFREQ)
     pol = ['XX', 'YY']
 
     # Set up paths.
-    test_data_dir = path.join(path.dirname(__file__), 'data')
-    if not path.isdir(test_data_dir):
-        os.mkdir(test_data_dir)
+    if not path.isdir(outdir):
+        os.mkdir(outdir)
 
     # Some precomputed numbers.
     # Will simulate data one chunk at a time, for memory or in case we want to
@@ -59,7 +81,7 @@ def generate():
             if integrations != 0:
                 f.close()
             fname = '%08d.h5' % int(round(integrations * TIME_PER_INTEGRATION))
-            fname = path.join(test_data_dir, fname)
+            fname = path.join(outdir, fname)
             f = h5py.File(fname, mode='w')
             # Index map
             im = f.create_group('index_map')
@@ -117,8 +139,4 @@ def generate():
     f.close()
 
 
-
-
-if __name__ == '__main__':
-    generate()
 

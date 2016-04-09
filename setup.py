@@ -8,7 +8,7 @@ from ch_L1mock import __version__
 REQUIRES = ['numpy', 'scipy', 'cython', 'h5py', 'bitshuffle']
 
 # Generate test data.
-from ch_L1mock.tests.generate_test_data import generate
+from ch_L1mock.tests.data import generate
 generate()
 
 setup(
