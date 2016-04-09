@@ -10,14 +10,12 @@ from os import path
 import numpy as np
 from numpy import random
 import h5py
-
 import bitshuffle.h5 as bshufh5
 
-# Can't import local packages as this is run prior to installation.
-# So hard code these.
-NYQUIST = 800e6
-NSAMP_FFT = 2048
-TIME_PER_PACKET = NSAMP_FFT / NYQUIST
+from ..constants import ADC_SAMPLE_RATE, NSAMP_FPGA_FFT
+
+
+TIME_PER_PACKET = NSAMP_FPGA_FFT / ADC_SAMPLE_RATE
 # Gives ~1.3ms cadence.  Needs to be multiple of 256: 16 for upchannelization
 # and 16 for SSE square accumulation.
 PACKETS_PER_INTEGRATION = 512
@@ -34,11 +32,10 @@ INTEGRATIONS_PER_FILE = CHUNK[2] * 64
 
 
 
-
 def generate():
 
     # Generate some metadata.
-    freq = NYQUIST - NYQUIST / NFREQ * np.arange(NFREQ)
+    freq = ADC_SAMPLE_RATE - ADC_SAMPLE_RATE / NFREQ * np.arange(NFREQ)
     pol = ['XX', 'YY']
 
     # Set up paths.
@@ -50,7 +47,8 @@ def generate():
     # Will simulate data one chunk at a time, for memory or in case we want to
     # do something more sophisticated eventually.
     this_ntime = CHUNK[2]
-    nsamp_integration = int(round(TIME_PER_INTEGRATION * NYQUIST / NFREQ / 2))
+    nsamp_integration = int(round(TIME_PER_INTEGRATION
+                                  * ADC_SAMPLE_RATE / NFREQ / 2))
     # In correator units, assuming RMS of 2 bits.
     # Note that this is an integer, which is realistic.
     Tsys = 16 * 2 * nsamp_integration
