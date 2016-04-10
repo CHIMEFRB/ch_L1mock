@@ -17,7 +17,7 @@ setup(
     packages = ['ch_L1mock', 'ch_L1mock.tests'],
     scripts=[],
     install_requires=REQUIRES,
-    pacakge_data = {'ch_L1mock.tests' : 'data/*'},
+    package_data = {'ch_L1mock.tests' : ['data/*']},
 
     author = "Kiyoshi Masui, Cherry Ng, Kendrick Smith",
     author_email = "kiyo@physics.ubc.ca",
