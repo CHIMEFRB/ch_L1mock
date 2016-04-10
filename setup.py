@@ -1,24 +1,23 @@
 from setuptools import setup
 import os
 
+# Supplies __version__
 from ch_L1mock import __version__
 
 
-REQUIRES = ['numpy', 'scipy', 'cython', 'h5py',]
+REQUIRES = ['numpy', 'scipy', 'cython', 'h5py', 'bitshuffle']
 
-# Don't install requirements if on ReadTheDocs build system.
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if on_rtd:
-    requires = []
-else:
-    requires = REQUIRES
+# Generate test data.
+from ch_L1mock.tests.data import generate
+generate()
 
 setup(
     name = 'ch_L1mock',
     version = __version__,
     packages = ['ch_L1mock', 'ch_L1mock.tests'],
     scripts=[],
-    install_requires=requires,
+    install_requires=REQUIRES,
+    package_data = {'ch_L1mock.tests' : ['data/*']},
 
     author = "Kiyoshi Masui, Cherry Ng, Kendrick Smith",
     author_email = "kiyo@physics.ubc.ca",
