@@ -204,7 +204,7 @@ class StreamWriter(object):
         f.create_dataset(
                 'index_map/time',
                 shape=(0,),
-                maxshape=(self._ntime_per_file,),
+                maxshape=(None,),
                 dtype=time_dset_info['dtype'],
                 chunks=time_dset_info['chunks'],
                 )
@@ -212,7 +212,7 @@ class StreamWriter(object):
             dset = f.create_dataset(
                     dset_name,
                     shape=(self._nfreq, self._npol, 0),
-                    maxshape=(self._nfreq, self._npol, self._ntime_per_file),
+                    maxshape=(self._nfreq, self._npol, None),
                     dtype=dset_info['dtype'],
                     chunks=dset_info['chunks'],
                     compression=dset_info['compression'],
