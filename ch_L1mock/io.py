@@ -147,7 +147,7 @@ class StreamWriter(object):
                         ntime_consumed + to_write,
                         **kwargs
                         )
-                ntime_consumed = ntime_consumed + to_write,
+                ntime_consumed = ntime_consumed + to_write
             else:
                 # Add data to buffers.
                 to_buffer = min(self.ntime_block - self.ntime_buffer,
