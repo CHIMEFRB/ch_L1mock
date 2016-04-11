@@ -21,7 +21,6 @@ cdef extern from "ch_vdif_assembler_kernels.hpp" namespace "ch_vdif_assembler":
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-@cython.cdivision(True) 
 def square_accumulate(
         np.ndarray[dtype=np.uint8_t, ndim=3, mode="c"] byte_data not None,
         int nsamp_integrate,

@@ -23,18 +23,27 @@ logger = logging.getLogger(__name__)
 # Vdif processors
 # ===============
 
-class BaseIntegrator(ch_vdif_assembler.processor):
-    """Abstract base class for basic integrators with call backs."""
+class BaseCorrelator(ch_vdif_assembler.processor):
+    """Abstract base class for correlators.
 
-    call_back = lambda self, t0, intensity, weight: None
+    Subclasses should implement `post_process_intensity` to do something with
+    correlated data.
+
+    """
+
+    byte_data = True
 
     def __init__(self, nsamp_integrate=512, **kwargs):
-        super(BaseIntegrator, self).__init__(**kwargs)
+        super(BaseCorrelator, self).__init__(**kwargs)
         self._nsamp_integrate = nsamp_integrate
+
+    def square_accumulate(self, efield, mask):
+        return _L0.square_accumulate(efield, self._nsamp_integrate)
 
     def process_chunk(self, t0, nt, efield, mask):
         ninteg = self._nsamp_integrate
         if nt % ninteg:
+            # This is currently true of all subclasses.
             msg = ("Number of samples to accumulate (%d) must evenly divide"
                    " number of samples (%d).")
             msg = msg % (ninteg, nt)
@@ -43,13 +52,22 @@ class BaseIntegrator(ch_vdif_assembler.processor):
         #t0 = time.time()
         intensity, weight = self.square_accumulate(efield, mask)
         #print "Chunk integration time:", time.time() - t0
-        self.call_back(t0, intensity, weight)
+        self.post_process_intensity(t0, intensity, weight)
 
-    def square_accumulate(self, efield, maska):
-        raise NotImplementedError("This is just an abstract base class.")
+    def post_process_intensity(self, t0, intensity, weight):
+        pass
 
 
-class ReferenceIntegrator(BaseIntegrator):
+class ReferenceSqAccumMixin(object):
+    """Reference square accumulator, used for testing.
+
+    This mixen can be used to replace the central enging of a correlator with a
+    slow, reference, pure-python implementation. This can be usefull for
+    testing.
+
+    """
+
+    byte_data = False
 
     def square_accumulate(self, efield, mask):
         ninteg = self._nsamp_integrate
@@ -75,50 +93,29 @@ class ReferenceIntegrator(BaseIntegrator):
         return intensity, weight
 
 
-class FastIntegrator(BaseIntegrator):
+class CallBackCorrelator(BaseCorrelator):
+    """Correlator to which post processing can be added dynamically.
 
-    byte_data = True
+    """
 
-    def square_accumulate(self, efield, mask):
-        return _L0.square_accumulate(efield, self._nsamp_integrate)
+    def __init__(self, *args, **kwargs):
+        super(CallBackCorrelator, self).__init__(*args, **kwargs)
+        self._callbacks = []
 
+    def add_callback(self, callback):
+        """Add post processing to the correlator.
 
+        The argument `callback` must be a function with the call signature
+        `callback(t0, intensity, weight)`.
 
+        """
 
-# Testing Classes
-# ===============
+        self._callbacks.append(callback)
 
-class IntegratorComparison(object):
+    def post_process_intensity(self, t0, intensity, weight):
+        for c in self._callbacks:
+            c(t0, intensity, weight)
 
-    integrated_chunk1 = None
-    integrated_chunk2 = None
-
-    def __init__(self, integrator1, integrator2):
-        integrator1.call_back = self.add_integrated_chunk1
-        integrator2.call_back = self.add_integrated_chunk2
-
-    def add_integrated_chunk1(self, t0, intensity, weight):
-        self.integrated_chunk1 = (t0, intensity, weight)
-        if self.integrated_chunk2:
-            self.compare()
-
-    def add_integrated_chunk2(self, t0, intensity, weight):
-        self.integrated_chunk2 = (t0, intensity, weight)
-        if self.integrated_chunk1:
-            self.compare()
-
-    def compare(self):
-        c1 = self.integrated_chunk1
-        c2 = self.integrated_chunk2
-        if not np.allclose(c1[0], c2[0]):
-            raise RuntimeError("Time stamps don't match")
-        if not np.allclose(c1[1], c2[1]):
-            raise RuntimeError("Intensity does not match")
-        if not np.allclose(c1[2], c2[2]):
-            raise RuntimeError("Weight does not match")
-        self.integrated_chunk1 = None
-        self.integrated_chunk2 = None
-        print "Passed!"
 
 
 
