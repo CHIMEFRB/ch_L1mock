@@ -13,6 +13,8 @@ import logging
 import numpy as np
 import ch_vdif_assembler
 
+import _L0
+
 
 logger = logging.getLogger(__name__)
 
@@ -20,21 +22,35 @@ logger = logging.getLogger(__name__)
 # Vdif processors
 # ===============
 
-class ReferenceIntegrator(ch_vdif_assembler.processor):
+class BaseIntegrator(ch_vdif_assembler.processor):
+    """Abstract base class for basic integrators with call backs."""
 
     call_back = lambda t0, intensity, weight: None
 
     def __init__(self, nsamp_integrate=512, **kwargs):
-        super(ReferenceIntegrator, self).__init__(**kwargs)
+        super(BaseIntegrator, self).__init__(**kwargs)
         self._nsamp_integrate = nsamp_integrate
 
     def process_chunk(self, t0, nt, efield, mask):
         ninteg = self._nsamp_integrate
         if nt % ninteg:
-            msg = ("nsamp_integrate (%d) must evenly divide number of"
-                   " samples (%d).")
+            msg = ("Number of samples to accumulate (%d) must evenly divide"
+                   " number of samples (%d).")
             msg = msg % (ninteg, nt)
             raise ValueError(msg)
+
+        intensity, weight = self.square_accumulate(efield, mask)
+        self.call_back(t0, intensity, weight)
+
+    def square_accumulate(self, efield, maska):
+        raise NotImplementedError("This is just an abstract base class.")
+
+
+class ReferenceIntegrator(BaseIntegrator):
+
+    def square_accumulate(self, efield, mask):
+        ninteg = self._nsamp_integrate
+
         e_squared = abs(efield)**2
         shape = efield.shape
         new_shape = shape[:-1] + (shape[-1] // ninteg, ninteg)
@@ -53,7 +69,17 @@ class ReferenceIntegrator(ch_vdif_assembler.processor):
         weight = np.round(weight).astype(np.uint8)
         weight[bad_inds] = 0
 
-        self.call_back(t0, intensity, weight)
+        return intensity, weight
+
+
+class FastIntegrator(BaseIntegrator):
+
+    byte_data = True
+
+    def square_accumulate(self, efield, mask):
+        return _L0.square_accumulate(efield, self._nsamp_integrate)
+
+
 
 
 # Testing Classes
