@@ -10,8 +10,11 @@ class TestReferenceIntegrator(unittest.TestCase):
     def test_runs(self):
         stream = ch_vdif_assembler.make_simulated_stream(gbps=1., nsec=5)
         assembler = ch_vdif_assembler.assembler()
-        p = L0.ReferenceIntegrator(nsamp_integrate=512)
-        assembler.register_processor(p)
+        p1 = L0.ReferenceIntegrator(nsamp_integrate=512)
+        p2 = L0.ReferenceIntegrator(nsamp_integrate=512)
+        comparison = L0.IntegratorComparison(p1, p2)
+        assembler.register_processor(p1)
+        assembler.register_processor(p2)
         assembler.run(stream)
 
 
