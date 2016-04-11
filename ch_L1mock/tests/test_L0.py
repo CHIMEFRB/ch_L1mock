@@ -29,6 +29,17 @@ class TestReferenceIntegrator(unittest.TestCase):
         assembler.run(stream)
 
 
+class TestToDisk(unittest.TestCase):
+
+    def test_runs(self):
+        stream = ch_vdif_assembler.make_simulated_stream(nsec=30)
+        assembler = ch_vdif_assembler.assembler()
+        p = L0.DiskWriteCorrelator(nsamp_integrate=512, outdir='tmp_corr')
+        assembler.register_processor(p)
+        assembler.run(stream)
+
+
+
 
 # Testing Classes
 # ===============

@@ -14,6 +14,7 @@ import time
 import numpy as np
 import ch_vdif_assembler
 
+import io
 import _L0
 
 
@@ -61,7 +62,7 @@ class BaseCorrelator(ch_vdif_assembler.processor):
 class ReferenceSqAccumMixin(object):
     """Reference square accumulator, used for testing.
 
-    This mixen can be used to replace the central enging of a correlator with a
+    This mixin can be used to replace the central enging of a correlator with a
     slow, reference, pure-python implementation. This can be usefull for
     testing.
 
@@ -115,6 +116,29 @@ class CallBackCorrelator(BaseCorrelator):
     def post_process_intensity(self, t0, intensity, weight):
         for c in self._callbacks:
             c(t0, intensity, weight)
+
+
+class DiskWriteCorrelator(BaseCorrelator):
+    """Correlator that streams output to disk.
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        outdir = kwargs.pop('outdir', '')
+        super(DiskWriteCorrelator, self).__init__(*args, **kwargs)
+        pol = ['XX', 'YY']    # XXX Wrong
+        freq = np.arange(1024)    # XXX Wrong
+        self._stream_writer = io.StreamWriter(outdir, freq, pol)
+
+    def post_process_intensity(self, t0, intensity, weight):
+        time = np.arange(intensity.shape[2])    # XXX Wrong. Placeholder.
+        self._stream_writer.absorb_chunk(
+                time=time,
+                intensity=intensity,
+                weight=weight)
+
+    def finalize(self):
+        self._stream_writer.finalize()
 
 
 
