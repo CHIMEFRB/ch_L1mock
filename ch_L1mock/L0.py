@@ -9,6 +9,7 @@ is based off of the packet assembly package: 'ch_vdif_assembler'.
 """
 
 import logging
+import time
 
 import numpy as np
 import ch_vdif_assembler
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 class BaseIntegrator(ch_vdif_assembler.processor):
     """Abstract base class for basic integrators with call backs."""
 
-    call_back = lambda t0, intensity, weight: None
+    call_back = lambda self, t0, intensity, weight: None
 
     def __init__(self, nsamp_integrate=512, **kwargs):
         super(BaseIntegrator, self).__init__(**kwargs)
@@ -39,7 +40,9 @@ class BaseIntegrator(ch_vdif_assembler.processor):
             msg = msg % (ninteg, nt)
             raise ValueError(msg)
 
+        #t0 = time.time()
         intensity, weight = self.square_accumulate(efield, mask)
+        #print "Chunk integration time:", time.time() - t0
         self.call_back(t0, intensity, weight)
 
     def square_accumulate(self, efield, maska):
