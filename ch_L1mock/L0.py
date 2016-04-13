@@ -15,6 +15,7 @@ import numpy as np
 import ch_vdif_assembler
 
 import io
+import constants
 import _L0
 
 
@@ -53,9 +54,19 @@ class BaseCorrelator(ch_vdif_assembler.processor):
         #t0 = time.time()
         intensity, weight = self.square_accumulate(efield, mask)
         #print "Chunk integration time:", time.time() - t0
-        self.post_process_intensity(t0, intensity, weight)
 
-    def post_process_intensity(self, t0, intensity, weight):
+        # Time stamps of integrated data.
+        # Time in FPGA counts.
+        time = np.arange(intensity.shape[2], dtype=np.float64)
+        time *= self._nsamp_integrate
+        time += t0 + float(self._nsamp_integrate) / 2
+        # Convert time to seconds.
+        # XXX I'm not acctually sure this is the correct conversion.
+        time = time / constants.FPGA_FRAME_RATE
+
+        self.post_process_intensity(time, intensity, weight)
+
+    def post_process_intensity(self, time, intensity, weight):
         pass
 
 
@@ -126,16 +137,18 @@ class DiskWriteCorrelator(BaseCorrelator):
     def __init__(self, *args, **kwargs):
         outdir = kwargs.pop('outdir', '')
         super(DiskWriteCorrelator, self).__init__(*args, **kwargs)
-        pol = ['XX', 'YY']    # XXX Wrong
-        freq = np.arange(1024)    # XXX Wrong
+        # XXX Any way to check these dynamically?
+        pol = ['XX', 'YY']
+        freq = (constants.FPGA_FREQ0 + np.arange(constants.FPGA_NFREQ) *
+               constants.FPGA_DELTA_FREQ)
         self._stream_writer = io.StreamWriter(outdir, freq, pol)
 
-    def post_process_intensity(self, t0, intensity, weight):
-        time = np.arange(intensity.shape[2])    # XXX Wrong. Placeholder.
+    def post_process_intensity(self, time, intensity, weight):
         self._stream_writer.absorb_chunk(
                 time=time,
                 intensity=intensity,
-                weight=weight)
+                weight=weight,
+                )
 
     def finalize(self):
         self._stream_writer.finalize()
