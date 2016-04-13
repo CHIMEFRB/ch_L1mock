@@ -209,14 +209,16 @@ class StreamWriter(object):
                 chunks=time_dset_info['chunks'],
                 )
         for dset_name, dset_info in datasets.items():
+            compression = dset_info.get('compression', None)
+            compression_opts = dset_info.get('compression_opts', None)
             dset = f.create_dataset(
                     dset_name,
                     shape=(self._nfreq, self._npol, 0),
                     maxshape=(self._nfreq, self._npol, None),
                     dtype=dset_info['dtype'],
                     chunks=dset_info['chunks'],
-                    compression=dset_info['compression'],
-                    compression_opts=dset_info['compression_opts'],
+                    compression=compression,
+                    compression_opts=compression_opts,
                     )
             dset.attrs['axis'] = dset_info['axis']
         self._file = f
