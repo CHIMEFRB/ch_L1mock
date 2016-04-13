@@ -34,7 +34,7 @@ setup(
     version = __version__,
     packages = ['ch_L1mock', 'ch_L1mock.tests'],
     ext_modules = extensions,
-    scripts=[],
+    scripts=['bin/corr-vdif-todisk'],
     install_requires=REQUIRES,
     package_data = {'ch_L1mock.tests' : ['data/*']},
 

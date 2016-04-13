@@ -1,0 +1,88 @@
+#! /usr/bin/python
+"""
+Correlate vdif packets and stream the intensity to disk.
+
+"""
+
+import argparse
+
+import ch_vdif_assembler
+
+from ch_L1mock import io, L0
+
+parser = argparse.ArgumentParser(
+        description="Correlate vdif packets and stream the intensity to disk.",
+        )
+sources = parser.add_subparsers(title="source",
+        description='Specficy source stream.',
+        dest='source',
+        )
+
+sub_p = sources.add_parser('network',
+        help='Run a network capture',
+        )
+
+sub_p = sources.add_parser('simulate',
+        help='Run a simulated network capture',
+        )
+sub_p.add_argument('--duration',
+        type=float,
+        default=60.,
+        help="Duration of the simulation, in seconds. Default 60.",
+        )
+sub_p.add_argument('--rate',
+        type=float,
+        default=6.4,
+        help="Data rate, in Gbps. Default 6.4.",
+        )
+
+sub_p = sources.add_parser('file-list',
+        help='Run a disk capture from a file list.',
+        )
+sub_p.add_argument('filelist',
+        metavar='file_list.txt',
+        help="File with list of file names.",
+        )
+
+sub_p = sources.add_parser('moose-acq',
+    help='Run a disk capture from a moose acquisition name.',
+    description="Use the script `show-moose-acquisitions.py` to browse"
+                " available acquisitions.",
+    )
+sub_p.add_argument('acqname',
+        help="Acquisition name",
+        )
+
+parser.add_argument('--outdir',
+        help="Where to write output files. Default is current directory",
+        default="./",
+        )
+
+
+def main(p):
+
+    args = p.parse_args()
+
+    if args.source == 'moose-acq':
+        stream = ch_vdif_assembler.moose_acquisition(args.acqname)
+    elif args.source == 'simulate':
+        stream = ch_vdif_assembler.make_simulated_stream(
+                nsec=args.duration, gbps=args.rate)
+    elif args.source == 'file-list':
+        with file(args.filelist) as f:
+            filelist = f.read().splitlines()
+        stream = ch_vdif_assembler.make_file_stream(filelist)
+    elif args.source == 'network':
+        stream = ch_vdif_assembler.make_network_stream()
+    else:
+        # For debugging. Should never happen.
+        raise RuntimeError()
+ 
+    assembler = ch_vdif_assembler.assembler()
+    p = L0.DiskWriteCorrelator(nsamp_integrate=512, outdir=args.outdir)
+    assembler.register_processor(p)
+    assembler.run(stream)
+
+
+if __name__ == "__main__":
+    main(parser)
