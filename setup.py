@@ -1,5 +1,8 @@
-from setuptools import setup
+from setuptools import setup, Extension
 import os
+
+from Cython.Build import cythonize
+import numpy as np
 
 # Supplies __version__
 from ch_L1mock import __version__
@@ -11,11 +14,27 @@ REQUIRES = ['numpy', 'scipy', 'cython', 'h5py', 'bitshuffle']
 from ch_L1mock.tests.data import generate
 generate()
 
+COMPILE_FLAGS = ['-O3', '-ffast-math', '-march=native']
+
+EXTENSIONS = [
+        Extension('ch_L1mock._L0',
+            ['ch_L1mock/_L0.pyx'],
+            extra_compile_args=COMPILE_FLAGS,
+            language="c++",
+            )
+        ]
+
+
+extensions = cythonize(EXTENSIONS,
+        include_path=[np.get_include()],
+        )
+
 setup(
     name = 'ch_L1mock',
     version = __version__,
     packages = ['ch_L1mock', 'ch_L1mock.tests'],
-    scripts=[],
+    ext_modules = extensions,
+    scripts=['bin/corr-vdif-todisk'],
     install_requires=REQUIRES,
     package_data = {'ch_L1mock.tests' : ['data/*']},
 
