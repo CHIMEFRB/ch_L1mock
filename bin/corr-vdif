@@ -57,6 +57,12 @@ parser.add_argument('--outdir',
         help="Where to write output files. Default is current directory",
         default="./",
         )
+parser.add_argument('--action',
+        help="What to do with correlated data. Default is to write to disk.",
+        choices=['todisk', 'burst-search'],
+        type=str,
+        default='todisk',
+        )
 
 
 def main(p):
@@ -77,9 +83,14 @@ def main(p):
     else:
         # For debugging. Should never happen.
         raise RuntimeError()
- 
+
+    if args.action == 'todisk':
+        p = L0.DiskWriteCorrelator(nsamp_integrate=512, outdir=args.outdir)
+    if args.action == 'burst-search':
+        p = L0.CallBackCorrelator(nsamp_integrate=512)
+        from ch_L1mock import bsearch_backend
+        # XXX Initialize the search
     assembler = ch_vdif_assembler.assembler()
-    p = L0.DiskWriteCorrelator(nsamp_integrate=512, outdir=args.outdir)
     assembler.register_processor(p)
     assembler.run(stream)
 
