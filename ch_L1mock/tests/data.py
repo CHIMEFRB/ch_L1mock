@@ -9,7 +9,7 @@ import glob
 import numpy as np
 from numpy import random
 
-from ..constants import ADC_SAMPLE_RATE, NSAMP_FPGA_FFT
+from ..constants import ADC_SAMPLE_RATE, FPGA_NSAMP_FFT
 from .. import io
 
 
@@ -21,7 +21,7 @@ TEST_DATA_DIR = path.join(path.dirname(__file__), 'data')
 TEST_DATA_FILES = glob.glob(path.join(TEST_DATA_DIR, '*.h5'))
 
 
-TIME_PER_PACKET = NSAMP_FPGA_FFT / ADC_SAMPLE_RATE
+TIME_PER_PACKET = FPGA_NSAMP_FFT / ADC_SAMPLE_RATE
 # Gives ~1.3ms cadence.  Needs to be multiple of 256: 16 for upchannelization
 # and 16 for SSE square accumulation.
 PACKETS_PER_INTEGRATION = 512
