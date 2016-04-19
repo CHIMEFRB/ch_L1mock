@@ -8,7 +8,7 @@ import numpy as np
 from ch_L1mock import __version__
 
 
-REQUIRES = ['numpy', 'scipy', 'cython', 'h5py', 'bitshuffle']
+REQUIRES = ['numpy', 'scipy', 'cython', 'h5py', 'bitshuffle', 'burst_search']
 
 # Generate test data.
 from ch_L1mock.tests.data import generate
