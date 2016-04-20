@@ -39,6 +39,10 @@ class BaseCorrelator(ch_vdif_assembler.processor):
         super(BaseCorrelator, self).__init__(**kwargs)
         self._nsamp_integrate = nsamp_integrate
 
+    @property
+    def nsamp_integrate(self):
+        return self._nsamp_integrate
+
     def square_accumulate(self, efield, mask):
         return _L0.square_accumulate(efield, self._nsamp_integrate)
 

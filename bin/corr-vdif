@@ -87,13 +87,25 @@ def main(p):
     if args.action == 'todisk':
         p = L0.DiskWriteCorrelator(nsamp_integrate=512, outdir=args.outdir)
     if args.action == 'burst-search':
-        p = L0.CallBackCorrelator(nsamp_integrate=512)
+        p = L0.CallBackCorrelator(nsamp_integrate=1024)
+        import matplotlib
+        matplotlib.use('Agg')
         from ch_L1mock import burst_search_interface
-        search_manager = burst_search_interface.Manager(p)
-        # XXX Initialize the search
+        search_manager = burst_search_interface.Manager(
+                p,
+                trigger_action='save_plot_dm,print',
+                )
+        # Initialize the search
+        import threading
+        search_thread = threading.Thread(
+                target=search_manager.process_real_time,
+                )
+        search_thread.start()
     assembler = ch_vdif_assembler.assembler()
     assembler.register_processor(p)
     assembler.run(stream)
+    if args.action == 'burst-search':
+        search_thread.join()
 
 
 if __name__ == "__main__":
