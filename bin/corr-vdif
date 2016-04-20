@@ -88,7 +88,8 @@ def main(p):
         p = L0.DiskWriteCorrelator(nsamp_integrate=512, outdir=args.outdir)
     if args.action == 'burst-search':
         p = L0.CallBackCorrelator(nsamp_integrate=512)
-        from ch_L1mock import bsearch_backend
+        from ch_L1mock import burst_search_interface
+        search_manager = burst_search_interface.Manager(p)
         # XXX Initialize the search
     assembler = ch_vdif_assembler.assembler()
     assembler.register_processor(p)
