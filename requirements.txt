@@ -3,3 +3,4 @@ numpy>=1.6.1
 Cython>=0.19
 h5py>=2.5.0
 -e git+https://github.com/kiyo-masui/bitshuffle#egg=bitshuffle
+-e git+https://github.com/kiyo-masui/burst_search#egg=burst_search

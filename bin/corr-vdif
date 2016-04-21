@@ -57,6 +57,12 @@ parser.add_argument('--outdir',
         help="Where to write output files. Default is current directory",
         default="./",
         )
+parser.add_argument('--action',
+        help="What to do with correlated data. Default is to write to disk.",
+        choices=['todisk', 'burst-search'],
+        type=str,
+        default='todisk',
+        )
 
 
 def main(p):
@@ -77,11 +83,29 @@ def main(p):
     else:
         # For debugging. Should never happen.
         raise RuntimeError()
- 
+
+    if args.action == 'todisk':
+        p = L0.DiskWriteCorrelator(nsamp_integrate=512, outdir=args.outdir)
+    if args.action == 'burst-search':
+        p = L0.CallBackCorrelator(nsamp_integrate=1024)
+        import matplotlib
+        matplotlib.use('Agg')
+        from ch_L1mock import burst_search_interface
+        search_manager = burst_search_interface.Manager(
+                p,
+                trigger_action='save_plot_dm,print',
+                )
+        # Initialize the search
+        import threading
+        search_thread = threading.Thread(
+                target=search_manager.process_real_time,
+                )
+        search_thread.start()
     assembler = ch_vdif_assembler.assembler()
-    p = L0.DiskWriteCorrelator(nsamp_integrate=512, outdir=args.outdir)
     assembler.register_processor(p)
     assembler.run(stream)
+    if args.action == 'burst-search':
+        search_thread.join()
 
 
 if __name__ == "__main__":
