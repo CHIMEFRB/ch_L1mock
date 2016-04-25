@@ -5,63 +5,80 @@ Correlate vdif packets and stream the intensity to disk.
 """
 
 import argparse
+import sys
 
 import ch_vdif_assembler
 
 from ch_L1mock import io, L0
 
-parser = argparse.ArgumentParser(
-        description="Correlate vdif packets and stream the intensity to disk.",
+main_parser = argparse.ArgumentParser(
+        description="Correlate vdif packets and process intensity data.",
         )
-sources = parser.add_subparsers(title="source",
-        description='Specficy source stream.',
+
+# Get the call signature right in the help for nested parsers.
+extended_prog = main_parser.prog
+if len(sys.argv) > 1:
+    extended_prog += ' ' + sys.argv[1]
+io_args = argparse.ArgumentParser(
+        prog=extended_prog,
+        add_help=False,
+        )
+sources = io_args.add_subparsers(title="source",
+        description='The source stream.',
         dest='source',
         )
 
-sub_p = sources.add_parser('network',
+network = sources.add_parser('network',
         help='Run a network capture',
         )
 
-sub_p = sources.add_parser('simulate',
+simulate = sources.add_parser('simulate',
         help='Run a simulated network capture',
         )
-sub_p.add_argument('--duration',
+simulate.add_argument('--duration',
         type=float,
         default=60.,
         help="Duration of the simulation, in seconds. Default 60.",
         )
-sub_p.add_argument('--rate',
+simulate.add_argument('--rate',
         type=float,
         default=6.4,
         help="Data rate, in Gbps. Default 6.4.",
         )
 
-sub_p = sources.add_parser('file-list',
+filelist = sources.add_parser('file-list',
         help='Run a disk capture from a file list.',
         )
-sub_p.add_argument('filelist',
+filelist.add_argument('filelist',
         metavar='file_list.txt',
         help="File with list of file names.",
         )
 
-sub_p = sources.add_parser('moose-acq',
+mooseacq = sources.add_parser('moose-acq',
     help='Run a disk capture from a moose acquisition name.',
     description="Use the script `show-moose-acquisitions.py` to browse"
                 " available acquisitions.",
     )
-sub_p.add_argument('acqname',
+mooseacq.add_argument('acqname',
         help="Acquisition name",
         )
 
-parser.add_argument('--outdir',
+io_args.add_argument('--outdir', '-o',
         help="Where to write output files. Default is current directory",
         default="./",
         )
-parser.add_argument('--action',
-        help="What to do with correlated data. Default is to write to disk.",
-        choices=['todisk', 'burst-search'],
-        type=str,
-        default='todisk',
+
+action_subparsers = main_parser.add_subparsers(title="action",
+        description="What to do with correlated data.",
+        dest='action',
+        )
+todisk = action_subparsers.add_parser('todisk',
+        help='Write to disk.',
+        parents=[io_args]
+        )
+burstsearch = action_subparsers.add_parser('burst-search',
+        help="Search for FRBs using 'Burst Search'.",
+        parents=[io_args]
         )
 
 
@@ -109,4 +126,4 @@ def main(p):
 
 
 if __name__ == "__main__":
-    main(parser)
+    main(main_parser)
