@@ -6,10 +6,13 @@ Correlate vdif packets and stream the intensity to disk.
 
 import argparse
 import sys
+import logging
 
 import ch_vdif_assembler
 
 from ch_L1mock import io, L0
+
+logging.basicConfig(level=logging.INFO)
 
 main_parser = argparse.ArgumentParser(
         description="Correlate vdif packets and process intensity data.",
@@ -115,7 +118,7 @@ def main(p):
         # Initialize the search
         import threading
         search_thread = threading.Thread(
-                target=search_manager.process_real_time,
+                target=search_manager.process_all,
                 )
         search_thread.start()
     assembler = ch_vdif_assembler.assembler()
