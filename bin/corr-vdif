@@ -22,11 +22,16 @@ main_parser = argparse.ArgumentParser(
 extended_prog = main_parser.prog
 if len(sys.argv) > 1:
     extended_prog += ' ' + sys.argv[1]
-io_args = argparse.ArgumentParser(
+
+
+# Initialize parser for parameters common to all actions.
+common_args = argparse.ArgumentParser(
         prog=extended_prog,
         add_help=False,
         )
-sources = io_args.add_subparsers(title="source",
+
+# This subparser of common_args specifies the source of vdif packets.
+sources = common_args.add_subparsers(title="source",
         description='The source stream.',
         dest='source',
         )
@@ -66,22 +71,29 @@ mooseacq.add_argument('acqname',
         help="Acquisition name",
         )
 
-io_args.add_argument('--outdir', '-o',
-        help="Where to write output files. Default is current directory",
+common_args.add_argument('--outdir', '-o',
         default="./",
+        help="Where to write output files. Default is current directory",
+        )
+common_args.add_argument('--nframe-inegrate', '-n',
+        type=int,
+        default=512,
+        help="How many time frames to integrate."
         )
 
+
+# This parser specifies what to do with correlated data.
 action_subparsers = main_parser.add_subparsers(title="action",
         description="What to do with correlated data.",
         dest='action',
         )
 todisk = action_subparsers.add_parser('todisk',
         help='Write to disk.',
-        parents=[io_args]
+        parents=[common_args]
         )
 burstsearch = action_subparsers.add_parser('burst-search',
         help="Search for FRBs using 'Burst Search'.",
-        parents=[io_args]
+        parents=[common_args]
         )
 
 
@@ -105,9 +117,14 @@ def main(p):
         raise RuntimeError()
 
     if args.action == 'todisk':
-        p = L0.DiskWriteCorrelator(nsamp_integrate=512, outdir=args.outdir)
+        p = L0.DiskWriteCorrelator(
+                nsamp_integrate=args.nsamp_integrate,
+                outdir=args.outdir,
+                )
     if args.action == 'burst-search':
-        p = L0.CallBackCorrelator(nsamp_integrate=1024)
+        p = L0.CallBackCorrelator(
+                nsamp_integrate=1024,
+                )
         import matplotlib
         matplotlib.use('Agg')
         from ch_L1mock import burst_search_interface
