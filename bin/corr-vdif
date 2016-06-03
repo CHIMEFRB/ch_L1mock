@@ -12,6 +12,10 @@ import ch_vdif_assembler
 
 from ch_L1mock import io, L0
 
+
+logger = logging.getLogger(__name__)
+
+
 logging.basicConfig(level=logging.INFO)
 
 main_parser = argparse.ArgumentParser(
@@ -75,7 +79,7 @@ common_args.add_argument('--outdir', '-o',
         default="./",
         help="Where to write output files. Default is current directory",
         )
-common_args.add_argument('--nframe-inegrate', '-n',
+common_args.add_argument('--nframe-integrate', '-n',
         type=int,
         default=512,
         help="How many time frames to integrate."
@@ -87,14 +91,26 @@ action_subparsers = main_parser.add_subparsers(title="action",
         description="What to do with correlated data.",
         dest='action',
         )
+
 todisk = action_subparsers.add_parser('todisk',
         help='Write to disk.',
         parents=[common_args]
         )
+
 burstsearch = action_subparsers.add_parser('burst-search',
         help="Search for FRBs using 'Burst Search'.",
         parents=[common_args]
         )
+burstsearch.add_argument('--todisk',
+        action='store_true',
+        help="Also stream data to disk is in the 'todisk' action.",
+        )
+
+serve = action_subparsers.add_parser('serve',
+        help='Serve correlated data over the network. NOT IMPLEMENTED.',
+        parents=[common_args],
+        )
+
 
 
 def main(p):
@@ -118,12 +134,12 @@ def main(p):
 
     if args.action == 'todisk':
         p = L0.DiskWriteCorrelator(
-                nsamp_integrate=args.nsamp_integrate,
+                nsamp_integrate=args.nframe_integrate,
                 outdir=args.outdir,
                 )
-    if args.action == 'burst-search':
+    elif args.action == 'burst-search':
         p = L0.CallBackCorrelator(
-                nsamp_integrate=1024,
+                nsamp_integrate=args.nframe_integrate,
                 )
         import matplotlib
         matplotlib.use('Agg')
@@ -132,16 +148,27 @@ def main(p):
                 p,
                 trigger_action='save_plot_dm,print',
                 )
+        if args.todisk:
+            from ch_L1mock import io
+            todisk_stream = io.StreamWriter(args.outdir)
+            p.add_diskwrite_callback(todisk_stream)
+
         # Initialize the search
         import threading
         search_thread = threading.Thread(
                 target=search_manager.process_all,
                 )
-        search_thread.start()
+        search_thread.daemon = True
+    elif args.action == 'serve':
+        raise NotImplementedError()
+
     assembler = ch_vdif_assembler.assembler()
     assembler.register_processor(p)
+    if args.action == 'burst-search':
+        search_thread.start()
     assembler.run(stream)
     if args.action == 'burst-search':
+        logger.info('Stream ended, waiting for burst search to finish.')
         search_thread.join()
 
 

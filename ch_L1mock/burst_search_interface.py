@@ -28,10 +28,10 @@ class DataSource(datasource.DataSource):
                 **kwargs
                 )
 
-        vdif_cb_processor.add_callback(self.absorb_chunk)
+        vdif_cb_processor.add_callback(self.absorb_chunk, self.end_stream)
 
         p = vdif_cb_processor
-        self._delta_t_native = p.nsamp_integrate / constants.FPGA_FRAME_RATE
+        self._delta_t_native = p.delta_t
         self._nfreq = constants.FPGA_NFREQ
         self._freq0 = constants.FPGA_FREQ0 / 1e6
         self._delta_f = constants.FPGA_DELTA_FREQ / 1e6
@@ -69,11 +69,13 @@ class DataSource(datasource.DataSource):
 
     def get_next_block_native(self):
         t0, data = self._correlated_data_queue.get()
+        if data is None:
+            raise StopIteration()
         self._nblocks_fetched += 1
         return t0, data
 
-    def absorb_chunk(self, time, intensity, weight):
-        t0, intensity, weight = preprocess_chunk(time[0], intensity, weight)
+    def absorb_chunk(self, time0, intensity, weight):
+        t0, intensity, weight = preprocess_chunk(time0, intensity, weight)
         if self._ntime_absorbed == 0:
             self._this_buf_t0 = t0
         this_ntime = intensity.shape[-1]
@@ -101,7 +103,8 @@ class DataSource(datasource.DataSource):
 
         self._ntime_absorbed += this_ntime
 
-
+    def end_stream(self):
+        self._correlated_data_queue.put((0, None))
 
 
 def preprocess_chunk(t0, intensity, weight):
