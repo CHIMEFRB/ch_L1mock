@@ -35,24 +35,23 @@ class BaseCorrelator(ch_vdif_assembler.processor):
 
     byte_data = True
 
-    def __init__(self, nsamp_integrate=512, **kwargs):
+    def __init__(self, nframe_integrate=512, **kwargs):
         super(BaseCorrelator, self).__init__(**kwargs)
-        self._nsamp_integrate = nsamp_integrate
+        self._nframe_integrate = nframe_integrate
 
     @property
     def delta_t(self):
-        return self.nsamp_integrate / constants.FPGA_FRAME_RATE
+        return self.nframe_integrate / constants.FPGA_FRAME_RATE
 
     @property
-    def nsamp_integrate(self):
-        # XXX I'm not acctually sure this is the correct conversion.
-        return self._nsamp_integrate
+    def nframe_integrate(self):
+        return self._nframe_integrate
 
     def square_accumulate(self, efield, mask):
-        return _L0.square_accumulate(efield, self._nsamp_integrate)
+        return _L0.square_accumulate(efield, self._nframe_integrate)
 
     def process_chunk(self, t0, nt, efield, mask):
-        ninteg = self._nsamp_integrate
+        ninteg = self._nframe_integrate
         if nt % ninteg:
             # This is currently true of all subclasses.
             msg = ("Number of samples to accumulate (%d) must evenly divide"
@@ -64,7 +63,7 @@ class BaseCorrelator(ch_vdif_assembler.processor):
         intensity, weight = self.square_accumulate(efield, mask)
         #print "Chunk integration time:", time.time() - t0
 
-        time0 = float(t0) / self._nsamp_integrate + 1. / 2
+        time0 = float(t0) / self._nframe_integrate + 1. / 2
         time0 = time0 * self.delta_t
 
         self.post_process_intensity(time0, intensity, weight)
@@ -85,7 +84,7 @@ class ReferenceSqAccumMixin(object):
     byte_data = False
 
     def square_accumulate(self, efield, mask):
-        ninteg = self._nsamp_integrate
+        ninteg = self._nframe_integrate
 
         e_squared = abs(efield)**2
         shape = efield.shape

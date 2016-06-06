@@ -134,12 +134,12 @@ def main(p):
 
     if args.action == 'todisk':
         p = L0.DiskWriteCorrelator(
-                nsamp_integrate=args.nframe_integrate,
+                nframe_integrate=args.nframe_integrate,
                 outdir=args.outdir,
                 )
     elif args.action == 'burst-search':
         p = L0.CallBackCorrelator(
-                nsamp_integrate=args.nframe_integrate,
+                nframe_integrate=args.nframe_integrate,
                 )
         import matplotlib
         matplotlib.use('Agg')
