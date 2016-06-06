@@ -34,7 +34,7 @@ setup(
     version = __version__,
     packages = ['ch_L1mock', 'ch_L1mock.tests'],
     ext_modules = extensions,
-    scripts=['bin/corr-vdif'],
+    scripts=['bin/corr-vdif', 'bin/run-L1-mock'],
     install_requires=REQUIRES,
     package_data = {'ch_L1mock.tests' : ['data/*']},
 
