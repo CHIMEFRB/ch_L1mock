@@ -12,6 +12,8 @@ import numpy as np
 import h5py
 import bitshuffle.h5 as bshufh5
 
+import constants
+
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,14 @@ DATASETS = {
 
 class StreamWriter(object):
 
-    def __init__(self, outdir, freq, pol, attrs=None):
+    def __init__(self, outdir='', freq=None, pol=None, attrs=None):
+        # Default values for freq and pol.
+        if freq is None:
+            freq = (constants.FPGA_FREQ0 + np.arange(constants.FPGA_NFREQ)
+                    * constants.FPGA_DELTA_FREQ)
+        if pol is None:
+            pol = ['XX', 'YY']
+
         self._outdir = outdir
         self._freq = freq
         self._nfreq = len(freq)

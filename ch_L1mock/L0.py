@@ -35,19 +35,23 @@ class BaseCorrelator(ch_vdif_assembler.processor):
 
     byte_data = True
 
-    def __init__(self, nsamp_integrate=512, **kwargs):
+    def __init__(self, nframe_integrate=512, **kwargs):
         super(BaseCorrelator, self).__init__(**kwargs)
-        self._nsamp_integrate = nsamp_integrate
+        self._nframe_integrate = nframe_integrate
 
     @property
-    def nsamp_integrate(self):
-        return self._nsamp_integrate
+    def delta_t(self):
+        return self.nframe_integrate / constants.FPGA_FRAME_RATE
+
+    @property
+    def nframe_integrate(self):
+        return self._nframe_integrate
 
     def square_accumulate(self, efield, mask):
-        return _L0.square_accumulate(efield, self._nsamp_integrate)
+        return _L0.square_accumulate(efield, self._nframe_integrate)
 
     def process_chunk(self, t0, nt, efield, mask):
-        ninteg = self._nsamp_integrate
+        ninteg = self._nframe_integrate
         if nt % ninteg:
             # This is currently true of all subclasses.
             msg = ("Number of samples to accumulate (%d) must evenly divide"
@@ -59,25 +63,19 @@ class BaseCorrelator(ch_vdif_assembler.processor):
         intensity, weight = self.square_accumulate(efield, mask)
         #print "Chunk integration time:", time.time() - t0
 
-        # Time stamps of integrated data.
-        # Time in FPGA counts.
-        time = np.arange(intensity.shape[2], dtype=np.float64)
-        time *= self._nsamp_integrate
-        time += t0 + float(self._nsamp_integrate) / 2
-        # Convert time to seconds.
-        # XXX I'm not acctually sure this is the correct conversion.
-        time = time / constants.FPGA_FRAME_RATE
+        time0 = float(t0) / self._nframe_integrate + 1. / 2
+        time0 = time0 * self.delta_t
 
-        self.post_process_intensity(time, intensity, weight)
+        self.post_process_intensity(time0, intensity, weight)
 
-    def post_process_intensity(self, time, intensity, weight):
+    def post_process_intensity(self, time0, intensity, weight):
         pass
 
 
 class ReferenceSqAccumMixin(object):
     """Reference square accumulator, used for testing.
 
-    This mixin can be used to replace the central enging of a correlator with a
+    This mixin can be used to replace the central engine of a correlator with a
     slow, reference, pure-python implementation. This can be usefull for
     testing.
 
@@ -86,7 +84,7 @@ class ReferenceSqAccumMixin(object):
     byte_data = False
 
     def square_accumulate(self, efield, mask):
-        ninteg = self._nsamp_integrate
+        ninteg = self._nframe_integrate
 
         e_squared = abs(efield)**2
         shape = efield.shape
@@ -117,8 +115,9 @@ class CallBackCorrelator(BaseCorrelator):
     def __init__(self, *args, **kwargs):
         super(CallBackCorrelator, self).__init__(*args, **kwargs)
         self._callbacks = []
+        self._finalizes = []
 
-    def add_callback(self, callback):
+    def add_callback(self, callback, finalize=None):
         """Add post processing to the correlator.
 
         The argument `callback` must be a function with the call signature
@@ -127,13 +126,30 @@ class CallBackCorrelator(BaseCorrelator):
         """
 
         self._callbacks.append(callback)
+        if finalize is not None:
+            self._finalizes.append(finalize)
 
-    def post_process_intensity(self, t0, intensity, weight):
+    def add_diskwrite_callback(self, stream_writer):
+        self._stream_writer = stream_writer
+        def wrap_absorb(time0, intensity, weight):
+            time = time0 + np.arange(intensity.shape[2]) * self.delta_t
+            self._stream_writer.absorb_chunk(
+                    time=time,
+                    intensity=intensity,
+                    weight=weight,
+                    )
+        self.add_callback(wrap_absorb, stream_writer.finalize)
+
+    def post_process_intensity(self, time0, intensity, weight):
         for c in self._callbacks:
-            c(t0, intensity, weight)
+            c(time0, intensity, weight)
+
+    def finalize(self):
+        for c in self._finalizes:
+            c()
 
 
-class DiskWriteCorrelator(BaseCorrelator):
+class DiskWriteCorrelator(CallBackCorrelator):
     """Correlator that streams output to disk.
 
     """
@@ -141,21 +157,9 @@ class DiskWriteCorrelator(BaseCorrelator):
     def __init__(self, *args, **kwargs):
         outdir = kwargs.pop('outdir', '')
         super(DiskWriteCorrelator, self).__init__(*args, **kwargs)
-        # XXX Any way to check these dynamically?
-        pol = ['XX', 'YY']
-        freq = (constants.FPGA_FREQ0 + np.arange(constants.FPGA_NFREQ) *
-               constants.FPGA_DELTA_FREQ)
-        self._stream_writer = io.StreamWriter(outdir, freq, pol)
+        stream_writer = io.StreamWriter(outdir)
+        self.add_diskwrite_callback(stream_writer)
 
-    def post_process_intensity(self, time, intensity, weight):
-        self._stream_writer.absorb_chunk(
-                time=time,
-                intensity=intensity,
-                weight=weight,
-                )
-
-    def finalize(self):
-        self._stream_writer.finalize()
 
 
 
