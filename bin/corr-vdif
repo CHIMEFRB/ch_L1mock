@@ -84,6 +84,10 @@ common_args.add_argument('--nframe-integrate', '-n',
         default=512,
         help="How many time frames to integrate."
         )
+common_args.add_argument('--vdif-todisk',
+        action='store_true',
+        help="Also stream baseband (vdif) data to disk (requires sudo).",
+        )
 
 
 # This parser specifies what to do with correlated data.
@@ -103,7 +107,7 @@ burstsearch = action_subparsers.add_parser('burst-search',
         )
 burstsearch.add_argument('--todisk',
         action='store_true',
-        help="Also stream data to disk is in the 'todisk' action.",
+        help="Also stream correlated data to disk as in the 'todisk' action.",
         )
 
 serve = action_subparsers.add_parser('serve',
@@ -162,7 +166,7 @@ def main(p):
     elif args.action == 'serve':
         raise NotImplementedError()
 
-    assembler = ch_vdif_assembler.assembler()
+    assembler = ch_vdif_assembler.assembler(write_to_disk=args.vdif_todisk)
     assembler.register_processor(p)
     if args.action == 'burst-search':
         search_thread.start()
