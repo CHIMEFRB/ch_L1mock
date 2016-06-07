@@ -47,6 +47,26 @@ class BaseCorrelator(ch_vdif_assembler.processor):
     def nframe_integrate(self):
         return self._nframe_integrate
 
+    @property
+    def freq0(self):
+        return constants.FPGA_FREQ0
+
+    @property
+    def delta_f(self):
+        return constants.FPGA_DELTA_FREQ
+
+    @property
+    def nfreq(self):
+        return constants.FPGA_NFREQ
+
+    @property
+    def freq(self):
+        return self.freq0 + np.arange(self.nfreq) * self.delta_f
+
+    @property
+    def pol(self):
+        return ['XX', 'YY']
+
     def square_accumulate(self, efield, mask):
         return _L0.square_accumulate(efield, self._nframe_integrate)
 
@@ -157,7 +177,7 @@ class DiskWriteCorrelator(CallBackCorrelator):
     def __init__(self, *args, **kwargs):
         outdir = kwargs.pop('outdir', '')
         super(DiskWriteCorrelator, self).__init__(*args, **kwargs)
-        stream_writer = io.StreamWriter(outdir)
+        stream_writer = io.StreamWriter(outdir, freq=self.freq, pol=self.pol)
         self.add_diskwrite_callback(stream_writer)
 
 

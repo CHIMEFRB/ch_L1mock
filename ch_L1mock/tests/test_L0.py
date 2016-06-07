@@ -14,8 +14,8 @@ class TestReferenceIntegrator(unittest.TestCase):
         class ReferenceCorrelator(L0.ReferenceSqAccumMixin,
                 L0.CallBackCorrelator):
             pass
-        p1 = ReferenceCorrelator(nsamp_integrate=512)
-        p2 = L0.CallBackCorrelator(nsamp_integrate=512)
+        p1 = ReferenceCorrelator(nframe_integrate=512)
+        p2 = L0.CallBackCorrelator(nframe_integrate=512)
         comparison = IntegratorComparison(p1, p2)
         assembler.register_processor(p1)
         assembler.register_processor(p2)
@@ -24,7 +24,7 @@ class TestReferenceIntegrator(unittest.TestCase):
     def test_fast_enough(self):
         stream = ch_vdif_assembler.make_simulated_stream(nsec=5)
         assembler = ch_vdif_assembler.assembler()
-        p = L0.BaseCorrelator(nsamp_integrate=512)
+        p = L0.BaseCorrelator(nframe_integrate=512)
         assembler.register_processor(p)
         assembler.run(stream)
 
@@ -32,9 +32,9 @@ class TestReferenceIntegrator(unittest.TestCase):
 class TestToDisk(unittest.TestCase):
 
     def test_runs(self):
-        stream = ch_vdif_assembler.make_simulated_stream(nsec=30)
+        stream = ch_vdif_assembler.make_simulated_stream(nsec=5)
         assembler = ch_vdif_assembler.assembler()
-        p = L0.DiskWriteCorrelator(nsamp_integrate=512, outdir='tmp_corr')
+        p = L0.DiskWriteCorrelator(nframe_integrate=512, outdir='tmp_corr')
         assembler.register_processor(p)
         assembler.run(stream)
 
