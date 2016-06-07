@@ -129,7 +129,7 @@ class StreamWriter(object):
         return self._ntime_per_file
 
     def absorb_chunk(self, **kwargs):
-        """Currently the number of time samples much add up to ntime.
+        """
         """
 
         time = kwargs.pop('time')

@@ -6,7 +6,8 @@
 source:
     # Where the data come from.
     type: vdif
-    # Where to get the vdif packets
+    # Where to get the vdif packets with parameters. Should support all
+    # functionality of corr-vdif.
     vdif_source:
         type: network
     # Another example of a vdif source
@@ -20,6 +21,8 @@ source:
 # source:
 #     type: from_disk
 #     data_dir: path/to/data/
+
+# Plan to have source types: vdif, from_disk, network
 
 
 preprocess:
