@@ -1,4 +1,5 @@
 import unittest
+import Queue
 
 import numpy as np
 import ch_vdif_assembler
@@ -14,19 +15,23 @@ class TestVdifSource(unittest.TestCase):
         p = L0.CallBackCorrelator(nframe_integrate=512)
         ds = datasource.vdifSource(p, ntime_chunk=256)
         assembler.register_processor(p)
-        thread, bucket = utils.start_daemon_thread(
-                assembler.run,
+        thread = utils.ExceptThread(
+                target=assembler.run,
                 args=(stream,),
                 )
+        thread.start()
         n_data = 0
         while True:
+            thread.check()
             try:
-                data = ds.yield_chunk()
-                self.assertEqual(data.shape, (1024, 256))
-                n_data += data.shape[1]
+                data, mask = ds.yield_chunk(timeout=0.1)
             except StopIteration:
                 break
-        thread.join()
+            except datasource.NoData:
+                continue
+            self.assertEqual(data.shape, (1024, 256))
+            n_data += data.shape[1]
+        thread.check_join()
         self.assertGreater(n_data, 1000)
 
 

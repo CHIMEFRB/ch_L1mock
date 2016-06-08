@@ -72,7 +72,7 @@ class DataSource(object):
     def __init__(self):
         self._current_chunk = 0
 
-    def yield_chunk(self):
+    def yield_chunk(self, timeout=None):
         """Yield a chunk of data.
 
         Base class implementation just initializes the data array and keeps
@@ -81,6 +81,10 @@ class DataSource(object):
         Returns
         -------
         data : numpy array with shape (nfreq, ntime) and dtype np.float32.
+
+        Raises
+        ------
+        NoData : If a blocking oberation times out.
 
         """
 
@@ -118,6 +122,9 @@ class DataSource(object):
         return self.time0 + self.current_time_offset
 
 
+class NoData(Exception):
+    pass
+
 
 class vdifSource(DataSource):
 
@@ -125,8 +132,12 @@ class vdifSource(DataSource):
         super(vdifSource, self).__init__()
         self._ntime_chunk = ntime_chunk
         self._processor = processor
-        self._correlated_data_queue = Queue.Queue()
         processor.add_callback(self._absorb_chunk, self._end_stream)
+
+        self._correlated_data_queue = Queue.Queue()
+        self._first_time0 = None
+        self._initialize_out_chunk()
+        self._total_samples = 0
 
     def __str__(self):
         return "vdif_data"
@@ -156,17 +167,76 @@ class vdifSource(DataSource):
     def delta_f(self):
         return self._processor.delta_f
 
+    def _initialize_out_chunk(self):
+        self._out_chunk = np.empty((self.nfreq, self.ntime_chunk),
+                                   dtype=np.float32)
+        self._out_mask = np.empty((self.nfreq, self.ntime_chunk),
+                                  dtype=np.uint8)
 
     def _absorb_chunk(self, time0, intensity, weight):
-        print time0, intensity.shape
-        self._correlated_data_queue.put(None)
+        # If this is the first chunk, initialize the stream start time.
+        if self._first_time0 is None:
+            self._first_time0 = time0
+
+        total_samples = self._total_samples
+        ntime_in = intensity.shape[2]
+        ntime_out = self._ntime_chunk
+        start_ind = int(round((time0 - self._first_time0) / self.delta_t))
+
+        #print start_ind, ntime_in
+
+        # Process the data.
+        intensity = intensity[:,0,:] + intensity[:,1,:]
+        mask = np.ones(intensity.shape, dtype=np.uint8)
+        mask[np.logical_or(weight[:,0,] < 128, weight[:,1,] < 128)] = 0
+
+        # Fill in and "gap" indecies with zeros.
+        if start_ind > total_samples:
+            out_edges = range((total_samples // ntime_out + 1) * ntime_out,
+                              start_ind, ntime_out)
+            out_edges = [total_samples] + out_edges + [start_ind]
+            #print "gap:", out_edges
+            for ii in range(len(out_edges) - 1):
+                left_edge = out_edges[ii] % ntime_out
+                right_edge = (out_edges[ii + 1] - 1) % ntime_out + 1
+                self._out_chunk[:, left_edge:right_edge] = 0
+                self._out_mask[:, left_edge:right_edge] = 0
+                if right_edge == ntime_out:
+                    self._correlated_data_queue.put((
+                        self._out_chunk, self._out_mask))
+                    self._initialize_out_chunk()
+
+        # Now deal with samples in the chunk.
+        out_edges = range((start_ind // ntime_out + 1) * ntime_out,
+                              start_ind + ntime_in, ntime_out)
+        out_edges = [start_ind] + out_edges + [start_ind + ntime_in]
+        in_edges = [ind - start_ind for ind in out_edges]
+        #print out_edges, in_edges
+        for ii in range(len(out_edges) - 1):
+            left_edge_out = out_edges[ii] % ntime_out
+            right_edge_out = (out_edges[ii + 1] - 1) % ntime_out + 1
+            left_edge_in = in_edges[ii]
+            right_edge_in = in_edges[ii + 1]
+            self._out_chunk[:, left_edge_out:right_edge_out] = \
+                    intensity[:, left_edge_in:right_edge_in]
+            self._out_mask[:, left_edge_out:right_edge_out] = \
+                    mask[:, left_edge_in:right_edge_in]
+            if right_edge_out == ntime_out:
+                self._correlated_data_queue.put((
+                    self._out_chunk, self._out_mask))
+                self._initialize_out_chunk()
+
+        self._total_samples = start_ind + ntime_in
+
 
     def _end_stream(self):
         self._correlated_data_queue.put(None)
 
-    def yield_chunk(self):
-        print "waiting for a chunk"
-        data_and_mask = self._correlated_data_queue.get()
+    def yield_chunk(self, timeout=None):
+        try:
+            data_and_mask = self._correlated_data_queue.get(timeout=timeout)
+        except Queue.Empty:
+            raise NoData
         if data_and_mask is None:
             raise StopIteration()
         else:

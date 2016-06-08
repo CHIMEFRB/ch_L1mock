@@ -7,36 +7,33 @@ import threading
 import Queue
 
 
-class ExcThread(threading.Thread):
-    """Thread that communicates exceptions."""
 
-    def __init__(self, bucket=None, **kwargs):
-        if not hasattr(bucket, 'put'):
-            raise ValueError("*bucket* parameter should be a Queue.")
-        super(ExcThread, self).__init__(**kwargs)
-        self._bucket = bucket
+class ExceptThread(threading.Thread):
+    """Thread that can communicate exceptions."""
+
+    def __init__(self, *args, **kwargs):
+        super(ExceptThread, self).__init__(*args, **kwargs)
+        self._error_bucket = Queue.Queue()
+        self.daemon = True
 
     def run(self):
         try:
-            super(ExcThread, self).run()
+            super(ExceptThread, self).run()
         except:
-            self._bucket.put(sys.exc_info())
+            self._error_bucket.put(sys.exc_info())
 
+    def check(self):
+        try:
+            err_info = self._error_bucket.get(False)
+            raise err_info[1], None, err_info[2]
+        except Queue.Empty:
+            pass
 
-def start_daemon_thread(target, args=(), kwargs=None):
-
-    if kwargs is None:
-        kwargs = {}
-
-    bucket = Queue.Queue()
-
-    thread = ExcThread(bucket=bucket, target=target, args=args, kwargs=kwargs)
-    thread.daemon = True
-
-    thread.start()
-    return thread, bucket
-
-
-
+    def check_join(self):
+        while True:
+            self.join(0.1)
+            if not self.is_alive():
+                self.check()
+                break
 
 
