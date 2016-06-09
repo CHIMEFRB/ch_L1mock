@@ -37,11 +37,13 @@ class DataSource(object):
         pass
 
     @abstractproperty
-    def time0(self):
+    def first_time0(self):
         """Start time of the data stream.
 
-        Must return the Unix/Posix time of the centre of the first sample of
-        the first chunk.
+        Must return a time, in seconds, refering to the first sample of the
+        first chunk.
+
+        Not guaranteed to be present until after the first chunk is yielded.
 
         """
         pass
@@ -108,18 +110,30 @@ class DataSource(object):
         return self._current_chunk
 
     @property
-    def current_time_offset(self):
-        return self.delta_t * self.ntime_chunk * self.current_chunk
+    def last_time0_offset(self):
+        return self.delta_t * self.ntime_chunk * (self.current_chunk - 1)
 
     @property
-    def current_time(self):
-        """Start time of next chunk.
+    def last_time0(self):
+        """Start time of the most recent chunk.
 
-        Unix/Posix time of the centre of the first sample of the next chunk.
+        Time, in seconds, of the centre of the first sample of the most
+        recently yielded chunk.
 
         """
 
-        return self.time0 + self.current_time_offset
+        return self.first_time0 + self.last_time0_offset
+
+    @property
+    def last_time(self):
+        return (self.last_time0 + np.arange(self.ntime_chunk, dtype=np.float64)
+                * self.delta_t)
+
+    @property
+    def freq(self):
+        return (self.freq0 + np.arange(self.nfreq, dtype=np.float64)
+                * self.delta_f)
+
 
 
 class NoData(Exception):
@@ -138,14 +152,15 @@ class vdifSource(DataSource):
         self._first_time0 = None
         self._initialize_out_chunk()
         self._total_samples = 0
+        self._first_time0 = None
 
     def __str__(self):
         return "vdif_data"
 
     @property
-    def time0(self):
+    def first_time0(self):
         # This is unknown and I don't know how to figure it out.
-        return 0
+        return self._first_time0
 
     @property
     def ntime_chunk(self):

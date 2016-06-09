@@ -127,6 +127,38 @@ class ReferenceSqAccumMixin(object):
         return intensity, weight
 
 
+class DummyDataMixin(object):
+    """Creates predicatable dummy output data for testing.
+
+    Mixin is used to replace methods in other classes using multiple
+    inheritance.
+
+    """
+
+    byte_data = True
+
+    def process_chunk(self, t0, nt, efield, mask):
+        ninteg = self._nframe_integrate
+        out_ntime = efield.shape[-1] // ninteg
+
+        time0 = float(t0) / self._nframe_integrate + 1. / 2
+        time0 = time0 * self.delta_t
+
+
+        # output is data = time * pol * freq
+        pol = np.arange(1, 3, dtype=np.float32)
+        time = time0 + np.arange(out_ntime) * self.delta_t
+        intensity = (self.freq.astype(np.float32)[:,None,None]
+                     * pol[:,None]
+                     * time.astype(np.float32)
+                     )
+        weight = np.empty(intensity.shape, dtype=np.uint8)
+        weight[:] = 255
+
+        self.post_process_intensity(time0, intensity, weight)
+
+
+
 class CallBackCorrelator(BaseCorrelator):
     """Correlator to which post processing can be added dynamically.
 
