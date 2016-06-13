@@ -2,6 +2,8 @@
 Driver class for the L1 mock up.
 """
 
+from burst_search import preprocess
+
 from ch_L1mock import datasource, L0, utils
 import ch_L1mock.tests.data as testdata
 
@@ -18,6 +20,10 @@ class Manager(object):
 
         # Set up the bits and pieces.
         self._configure_source()
+        self._configure_dedisperser()
+        self._configure_preprocessing()
+        self._configure_postprocessing()
+        self._configure_actions()
 
     def _configure_source(self):
         parameters = self._conf['source']
@@ -65,6 +71,19 @@ class Manager(object):
             raise ValueError(msg % ds_type)
         self._datasource = ds
 
+    def _configure_dedisperser(self):
+        pass
+
+    def _configure_preprocessing(self):
+        #self._dedisperser.preprocess_data = preprocess_chunk
+        pass
+
+    def _configure_postprocessing(self):
+        #self._dedisperser.process_triggers = something something
+        pass
+
+    def _configure_actions(self):
+        pass
 
     def _start(self):
         for t in self._daemon_threads:
@@ -74,8 +93,6 @@ class Manager(object):
         for t in self._daemon_threads:
             t.check_join()
         self._datasource.finalize()
-
-
 
     def run(self):
         self._start()
@@ -94,8 +111,27 @@ class Manager(object):
                 # No data ready. Keep waiting.
                 continue
             # We have data! Call in the dedisperser.
-
+            #self._dedisperser.run(data)
 
         self._finalize()
+
+
+def preprocess_chunk(data, mask):
+    subtract_masked_mean(data, mask)
+    # The following mostly ignore the mask and don't update it.
+    preprocess.remove_outliers(data, 5)
+    subtract_masked_mean(data, mask)
+    preprocess.remove_bad_times(data, 2)
+    preprocess.remove_noisy_freq(data, 3)
+
+
+def subtract_masked_mean(data, mask):
+    num = np.sum(data * mask, -1)
+    den = np.sum(mask, -1)
+    den[den == 0] = 1
+    data -= (num / den)[:,None]
+    data[mask == 0] = 0
+
+
 
 
