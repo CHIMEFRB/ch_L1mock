@@ -7,7 +7,9 @@ import argparse
 import sys
 import logging
 
-from ch_L1mock import io, L0
+import yaml
+
+from ch_L1mock import manager
 
 
 logger = logging.getLogger(__name__)
@@ -29,6 +31,9 @@ main_parser.add_argument("config_file",
 def main(p):
 
     args = p.parse_args()
+    with open(args.config_file) as f:
+        m = manager.Manager(yaml.load(f))
+    m.run()
 
 
 if __name__ == "__main__":
