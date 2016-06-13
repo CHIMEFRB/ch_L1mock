@@ -3,9 +3,12 @@ Data source interface for the L1 mock up.
 """
 
 from abc import ABCMeta, abstractmethod, abstractproperty
+from os import path
 import Queue
 
 import numpy as np
+
+from ch_L1mock import io
 
 
 class DataSource(object):
@@ -91,16 +94,19 @@ class DataSource(object):
         """
 
         self._current_chunk += 1
-        data = np.empty((self.nfreq, self.ntime), dtype=np.float32)
-        mask = np.zeros((self.nfreq, self.ntime), dtype=np.uint8)
+        data = np.empty((self.nfreq, self.ntime_chunk), dtype=np.float32)
+        mask = np.zeros((self.nfreq, self.ntime_chunk), dtype=np.uint8)
         return data, mask
+
+    def finalize(self):
+        pass
 
 
     # These are mixin methods and do not need to be overridden.
 
     @property
     def current_chunk(self):
-        """Number of chunks yeilded so far.
+        """Number of chunks yielded so far.
 
         This is zero on initialization and increments for each call to
         :meth:`self.yield_chunk`
@@ -155,7 +161,7 @@ class vdifSource(DataSource):
         self._first_time0 = None
 
     def __str__(self):
-        return "vdif_data"
+        return "vdif"
 
     @property
     def first_time0(self):
@@ -198,12 +204,8 @@ class vdifSource(DataSource):
         ntime_out = self._ntime_chunk
         start_ind = int(round((time0 - self._first_time0) / self.delta_t))
 
-        #print start_ind, ntime_in
-
         # Process the data.
-        intensity = intensity[:,0,:] + intensity[:,1,:]
-        mask = np.ones(intensity.shape, dtype=np.uint8)
-        mask[np.logical_or(weight[:,0,] < 128, weight[:,1,] < 128)] = 0
+        data, mask = _format_intensity_weight(intensity, weight)
 
         # Fill in and "gap" indecies with zeros.
         if start_ind > total_samples:
@@ -226,14 +228,13 @@ class vdifSource(DataSource):
                               start_ind + ntime_in, ntime_out)
         out_edges = [start_ind] + out_edges + [start_ind + ntime_in]
         in_edges = [ind - start_ind for ind in out_edges]
-        #print out_edges, in_edges
         for ii in range(len(out_edges) - 1):
             left_edge_out = out_edges[ii] % ntime_out
             right_edge_out = (out_edges[ii + 1] - 1) % ntime_out + 1
             left_edge_in = in_edges[ii]
             right_edge_in = in_edges[ii + 1]
             self._out_chunk[:, left_edge_out:right_edge_out] = \
-                    intensity[:, left_edge_in:right_edge_in]
+                    data[:, left_edge_in:right_edge_in]
             self._out_mask[:, left_edge_out:right_edge_out] = \
                     mask[:, left_edge_in:right_edge_in]
             if right_edge_out == ntime_out:
@@ -258,3 +259,92 @@ class vdifSource(DataSource):
             self._current_chunk += 1
             return data_and_mask
 
+
+class DiskSource(DataSource):
+
+    def __init__(self, datadir, ntime_chunk):
+        super(DataSource, self).__init__()
+        self._datadir = datadir
+        self._ntime_chunk = ntime_chunk
+        self._current_chunk = 0
+
+        self._stream = io.StreamReader(datadir)
+        freq = self._stream.freq
+        delta_f = np.mean(np.diff(freq))
+        if not np.allclose(np.diff(freq), delta_f):
+            raise ValueError("Frequencies not uniformly spaced")
+        self._delta_f = delta_f
+        self._freq0 = freq[0]
+        self._nfreq = len(freq)
+        self._delta_t = np.median(np.diff(self._stream.time))
+        self._first_time0 = self._stream.time[0]
+
+    def __str__(self):
+        dir_base_name = path.basename(path.abspath(self._datadir))
+        return "disk_" + dir_base_name
+
+    @property
+    def freq0(self):
+        return self._freq0
+
+    @property
+    def delta_f(self):
+        return self._delta_f
+
+    @property
+    def nfreq(self):
+        return self._nfreq
+
+    @property
+    def first_time0(self):
+        return self._first_time0
+
+    @property
+    def delta_t(self):
+        return self._delta_t
+
+    @property
+    def ntime_chunk(self):
+        return self._ntime_chunk
+
+    def yield_chunk(self, timeout=None):
+        start_of_chunk = self.last_time0 + self.delta_t * self.ntime_chunk
+        end_of_chunk = self.last_time0 + self.delta_t * self.ntime_chunk * 2
+        last_ind = np.searchsorted(self._stream.time, end_of_chunk -
+                self.delta_t/10)
+        ntime_read = last_ind - self._stream.current_time_ind
+
+        datasets = self._stream.yield_chunk(ntime_read)
+        time = datasets['time']
+        intensity = datasets['intensity']
+        weight = datasets['weight']
+        data, mask = _format_intensity_weight(intensity, weight)
+
+        # Deal with lost chunks and data gaps!
+        if data.shape[-1] != self.ntime_chunk:
+            new_shape = data.shape[:-1] + (self.ntime_chunk,)
+            data_new = np.zeros(new_shape, dtype=data.dtype)
+            mask_new = np.zeros(new_shape, dtype=mask.dtype)
+            inds = np.round((time - start_of_chunk) / self.delta_t).astype(int)
+            # This is probably very slow. Should try to convert to slice where
+            # possible.
+            data_new[...,inds] = data
+            mask_new[...,inds] = mask
+            data = data_new
+            mask = mask_new
+        elif not np.allclose(np.diff(time), self.delta_t):
+            raise ValueError("Non uniform time axis.")
+
+        self._current_chunk += 1
+        return data, mask
+
+
+def _format_intensity_weight(intensity, weight):
+    in_shape = intensity.shape
+    data = np.empty((in_shape[0], in_shape[2]), dtype=np.float32)
+    data[:,:] = intensity[:,0,:]
+    data += intensity[:,1,:]
+    mask = np.ones(data.shape, dtype=np.uint8)
+    # Mask data with less than 50% weight.
+    mask[np.logical_or(weight[:,0,:] < 128, weight[:,1,:] < 128)] = 0
+    return data, mask

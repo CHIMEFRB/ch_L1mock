@@ -133,6 +133,10 @@ class DummyDataMixin(object):
     Mixin is used to replace methods in other classes using multiple
     inheritance.
 
+    Data is just ``freq * pol * time``, where ``pol = [1,2]``. In addtion, any data
+    with ``0 < (time * 100) % 20 < 1`` is masked (zero weight), as is
+    ``0 < (freq/1e6) % 40 < 1``.
+
     """
 
     byte_data = True
@@ -154,6 +158,14 @@ class DummyDataMixin(object):
                      )
         weight = np.empty(intensity.shape, dtype=np.uint8)
         weight[:] = 255
+
+        mask_inds_time = (time * 100) % 20 < 1
+        intensity[:,:,mask_inds_time] = 0
+        weight[:,:,mask_inds_time] = 0
+
+        mask_inds_freq = (self.freq / 1e6) % 40 < 1
+        intensity[mask_inds_freq,:,:] = 0
+        weight[mask_inds_freq,:,:] = 0
 
         self.post_process_intensity(time0, intensity, weight)
 
