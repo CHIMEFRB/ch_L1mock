@@ -36,9 +36,10 @@ class BaseCorrelator(ch_vdif_assembler.processor):
 
     byte_data = True
 
-    def __init__(self, nframe_integrate=512, **kwargs):
+    def __init__(self, nframe_integrate=512, upchannelize_freq=1, **kwargs):
         super(BaseCorrelator, self).__init__(**kwargs)
         self._nframe_integrate = nframe_integrate
+        self._upchannelize_freq = upchannelize_freq
 
     @property
     def delta_t(self):
@@ -48,7 +49,9 @@ class BaseCorrelator(ch_vdif_assembler.processor):
     def nframe_integrate(self):
         return self._nframe_integrate
 
-    def square_accumulate(self, efield, mask):
+    def correlate(self, efield, mask):
+        if self._upchannelize_freq != 1:
+            raise NotImplementedError("Upchannelization not implemented.")
         return _L0.square_accumulate(efield, self._nframe_integrate)
 
     def process_chunk(self, t0, nt, efield, mask):
@@ -61,7 +64,7 @@ class BaseCorrelator(ch_vdif_assembler.processor):
             raise ValueError(msg)
 
         #t0 = time.time()
-        intensity, weight = self.square_accumulate(efield, mask)
+        intensity, weight = self.correlate(efield, mask)
         #print "Chunk integration time:", time.time() - t0
 
         time0 = float(t0) / self._nframe_integrate + 1. / 2
@@ -72,7 +75,7 @@ class BaseCorrelator(ch_vdif_assembler.processor):
     def post_process_intensity(self, time0, intensity, weight):
         pass
 
-    
+
 class ReferenceSqAccumMixin(object):
     """Reference square accumulator, used for testing.
 
@@ -146,7 +149,7 @@ class ReferenceSqAccumMixin(object):
         time0 = time0 * self.delta_t
 
 
-    def square_accumulate(self, efield, mask, ninteg=None):
+    def correlate(self, efield, mask, ninteg=None):
 
         # Moved ninteg to the argument to allow 
         if (ninteg is None) or (type(ninteg) is not int):
