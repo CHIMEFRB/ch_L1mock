@@ -8,7 +8,8 @@ import numpy as np
 from ch_L1mock import __version__
 
 
-REQUIRES = ['numpy', 'scipy', 'cython', 'h5py', 'bitshuffle', 'burst_search']
+REQUIRES = ['numpy', 'scipy', 'cython', 'h5py', 'bitshuffle', 'burst_search',
+        'PyYAML']
 
 # Generate test data.
 from ch_L1mock.tests.data import generate
@@ -34,7 +35,7 @@ setup(
     version = __version__,
     packages = ['ch_L1mock', 'ch_L1mock.tests'],
     ext_modules = extensions,
-    scripts=['bin/corr-vdif'],
+    scripts=['bin/corr-vdif', 'bin/run-L1-mock'],
     install_requires=REQUIRES,
     package_data = {'ch_L1mock.tests' : ['data/*']},
 
