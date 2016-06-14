@@ -9,11 +9,8 @@ from ch_L1mock import __version__
 
 
 REQUIRES = ['numpy', 'scipy', 'cython', 'h5py', 'bitshuffle', 'burst_search',
-        'PyYAML']
+        'PyYAML', 'ch_frb_io']
 
-# Generate test data.
-from ch_L1mock.tests.data import generate
-generate()
 
 COMPILE_FLAGS = ['-O3', '-ffast-math', '-march=native']
 
