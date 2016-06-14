@@ -10,7 +10,7 @@ import logging
 
 import ch_vdif_assembler
 
-from ch_L1mock import io, L0
+from ch_L1mock import L0
 
 
 logger = logging.getLogger(__name__)
@@ -153,8 +153,8 @@ def main(p):
                 trigger_action='save_plot_dm,print',
                 )
         if args.todisk:
-            from ch_L1mock import io
-            todisk_stream = io.StreamWriter(args.outdir)
+            from ch_frb_io import stream
+            todisk_stream = stream.StreamWriter(args.outdir)
             p.add_diskwrite_callback(todisk_stream)
 
         # Initialize the search

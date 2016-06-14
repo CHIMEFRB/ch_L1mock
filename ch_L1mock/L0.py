@@ -14,9 +14,10 @@ import time
 import numpy as np
 import ch_vdif_assembler
 
-import io
+from ch_frb_io import stream as io
 import constants
 import _L0
+
 
 
 logger = logging.getLogger(__name__)

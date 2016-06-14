@@ -8,7 +8,7 @@ import Queue
 
 import numpy as np
 
-from ch_L1mock import io
+from ch_frb_io import stream as io
 
 
 class DataSource(object):
