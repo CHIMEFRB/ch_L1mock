@@ -1,0 +1,10 @@
+# Minimal configuration file for run-L1-mock program.
+# 
+# All parameters here should be implemented.
+
+
+ntime_chunk: 256
+
+source:
+    type: disk
+    data_dir: TESTDATA    # Special value for internal test data.

@@ -7,6 +7,7 @@ import os
 from os import path
 import warnings
 import logging
+import glob
 
 import numpy as np
 import h5py
@@ -129,7 +130,7 @@ class StreamWriter(object):
         return self._ntime_per_file
 
     def absorb_chunk(self, **kwargs):
-        """Currently the number of time samples much add up to ntime.
+        """
         """
 
         time = kwargs.pop('time')
@@ -140,6 +141,8 @@ class StreamWriter(object):
                 msg = "Inconsistent dimensions for dataset %s" % name
                 raise ValueError(msg)
         kwargs['index_map/time'] = time
+
+        assert set(kwargs.keys()) == set(DATASETS.keys())
 
         ntime_consumed = 0
         while ntime_consumed < ntime:
@@ -260,3 +263,137 @@ class StreamWriter(object):
         self._ntime_buffer += ntime
         if self.ntime_buffer == self.ntime_block:
             self.flush()
+
+
+class StreamReader(object):
+
+    def __init__(self, datadir):
+        filenames = glob.glob(path.join(datadir, ("[0-9]" * 8 + '.h5')))
+        filenames.sort()
+        self._filenames = filenames
+        self._files = [h5py.File(f, mode='r') for f in filenames]
+        first_file = self._files[0]
+        self._attrs = first_file.attrs
+        self._freq = first_file['index_map/freq'][:]
+        self._pol = first_file['index_map/pol'][:]
+
+        time_arrs = [f['index_map/time'][:] for f in self._files]
+        self._ntimes = [len(t) for t in time_arrs]
+        self._time = np.concatenate(time_arrs)
+
+        datasets = dict(DATASETS)
+        del datasets['index_map/time']
+        for k in datasets.keys():
+            if k not in first_file:
+                del datasets[k]
+        self._datasets = datasets
+
+        self._current_time_ind = 0
+        self._time_chunk = CHUNKS[2]
+        # The following no longer a constraint.
+        #for nt in self._ntimes[:-1]:
+        #    if nt % self._time_chunk:
+        #        raise ValueError("Files don't have integer number of chunks.")
+
+        self._h5_cache_start_ind = None
+
+
+    @property
+    def attrs(self):
+        return dict(self._attrs)
+
+    @property
+    def filenames(self):
+        return list(self._filenames)
+
+    @property
+    def freq(self):
+        return self._freq.copy()
+
+    @property
+    def pol(self):
+        return self._pol.copy()
+
+    @property
+    def time(self):
+        return self._time.copy()
+
+    @property
+    def current_time_ind(self):
+        return self._current_time_ind
+
+    @property
+    def ntime_block(self):
+        """Target read size."""
+
+    def finalize(self):
+        [f.close() for f in self._files]
+
+    def __del__(self):
+        self.finalize()
+
+    def yield_chunk(self, ntime=None):
+        start_time_ind = self.current_time_ind
+        ntime_remaining = len(self.time) - start_time_ind
+        if ntime is None:
+            ntime = min(self._chunk, ntime_remaining)
+        if ntime > ntime_remaining or ntime == 0:
+            raise StopIteration()
+
+        out = {}
+        out['time'] = self.time[start_time_ind:start_time_ind + ntime]
+        dataset_names = self._datasets.keys()
+        for dataset_name in dataset_names:
+            out[dataset_name] = []
+
+        while self.current_time_ind < start_time_ind + ntime:
+            # Ensure 'current_time_ind' is in the cache.
+            self._cache_h5_chunk()
+            # Determine where in the cache current_time_ind is.
+            h5_cache_ind = self.current_time_ind - self._h5_cache_start_ind
+            h5_cache_size = self._h5_cache[dataset_names[0]].shape[-1]
+            # How much data to copy from the current cache.
+            ntime_this_cache = min(
+                # Either the whole cache...
+                h5_cache_size - h5_cache_ind,
+                # ... or the rest of the data needed for this chunk.
+                start_time_ind + ntime - self.current_time_ind,
+                )
+            h5_cache_slice = np.s_[h5_cache_ind:
+                                   h5_cache_ind + ntime_this_cache]
+            for dataset_name in dataset_names:
+                out[dataset_name].append(
+                    self._h5_cache[dataset_name][...,h5_cache_slice])
+
+            self._current_time_ind += ntime_this_cache
+
+        # Concatenate all the h5 chunks together to form an output chunk.
+        for dataset_name in dataset_names:
+            out[dataset_name] = np.concatenate(out[dataset_name], -1)
+
+        return out
+
+    def _cache_h5_chunk(self):
+        file_time_ind = self.current_time_ind
+        file_ntimes = list(self._ntimes)
+        which_file = 0
+        while file_time_ind >= file_ntimes[which_file]:
+            file_time_ind -= file_ntimes[which_file]
+            which_file += 1
+
+        # Get the hdf5 chunk that contains the index.
+        file_time_ind = (int(file_time_ind // self._time_chunk)
+                         * self._time_chunk)
+        h5_cache_start_ind = (np.sum(file_ntimes[:which_file], dtype=int)
+                              + file_time_ind)
+        if self._h5_cache_start_ind == h5_cache_start_ind:
+            return
+        self._h5_cache_start_ind = h5_cache_start_ind
+
+        self._h5_cache = {}
+        for dataset_name in self._datasets.keys():
+            dataset = self._files[which_file][dataset_name]
+            self._h5_cache[dataset_name] = dataset[...,
+                    file_time_ind:file_time_ind + self._time_chunk]
+
+
