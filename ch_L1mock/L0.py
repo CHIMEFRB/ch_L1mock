@@ -47,6 +47,26 @@ class BaseCorrelator(ch_vdif_assembler.processor):
     def nframe_integrate(self):
         return self._nframe_integrate
 
+    @property
+    def freq0(self):
+        return constants.FPGA_FREQ0
+
+    @property
+    def delta_f(self):
+        return constants.FPGA_DELTA_FREQ
+
+    @property
+    def nfreq(self):
+        return constants.FPGA_NFREQ
+
+    @property
+    def freq(self):
+        return self.freq0 + np.arange(self.nfreq) * self.delta_f
+
+    @property
+    def pol(self):
+        return ['XX', 'YY']
+
     def square_accumulate(self, efield, mask):
         return _L0.square_accumulate(efield, self._nframe_integrate)
 
@@ -107,6 +127,50 @@ class ReferenceSqAccumMixin(object):
         return intensity, weight
 
 
+class DummyDataMixin(object):
+    """Creates predicatable dummy output data for testing.
+
+    Mixin is used to replace methods in other classes using multiple
+    inheritance.
+
+    Data is just ``freq * pol * time``, where ``pol = [1,2]``. In addtion, any data
+    with ``0 < (time * 100) % 20 < 1`` is masked (zero weight), as is
+    ``0 < (freq/1e6) % 40 < 1``.
+
+    """
+
+    byte_data = True
+
+    def process_chunk(self, t0, nt, efield, mask):
+        ninteg = self._nframe_integrate
+        out_ntime = efield.shape[-1] // ninteg
+
+        time0 = float(t0) / self._nframe_integrate + 1. / 2
+        time0 = time0 * self.delta_t
+
+
+        # output is data = time * pol * freq
+        pol = np.arange(1, 3, dtype=np.float32)
+        time = time0 + np.arange(out_ntime) * self.delta_t
+        intensity = (self.freq.astype(np.float32)[:,None,None]
+                     * pol[:,None]
+                     * time.astype(np.float32)
+                     )
+        weight = np.empty(intensity.shape, dtype=np.uint8)
+        weight[:] = 255
+
+        mask_inds_time = (time * 100) % 20 < 1
+        intensity[:,:,mask_inds_time] = 0
+        weight[:,:,mask_inds_time] = 0
+
+        mask_inds_freq = (self.freq / 1e6) % 40 < 1
+        intensity[mask_inds_freq,:,:] = 0
+        weight[mask_inds_freq,:,:] = 0
+
+        self.post_process_intensity(time0, intensity, weight)
+
+
+
 class CallBackCorrelator(BaseCorrelator):
     """Correlator to which post processing can be added dynamically.
 
@@ -157,7 +221,7 @@ class DiskWriteCorrelator(CallBackCorrelator):
     def __init__(self, *args, **kwargs):
         outdir = kwargs.pop('outdir', '')
         super(DiskWriteCorrelator, self).__init__(*args, **kwargs)
-        stream_writer = io.StreamWriter(outdir)
+        stream_writer = io.StreamWriter(outdir, freq=self.freq, pol=self.pol)
         self.add_diskwrite_callback(stream_writer)
 
 
