@@ -87,73 +87,18 @@ class ReferenceSqAccumMixin(object):
 
     byte_data = False
 
-    def subband(fft, nchan=16,axis=2):
-        # fft is an array of size constants.chime_nfreq, 2, nt
-        # nt is a multiple of 2*nchan.
-        # the output array is of shape nchan*constants.chime_nfreq, 2, nt/nchan
-
-        nfreq = fft.shape[0]
-        nt = fft.shape[2]
-        assert nt%(2*nchan)==0
-        chunksize = nt/2/nchan
-        
-        fft_subband = np.zeros([nchan*fft.shape[0],2,fft.shape[2]/nchan],dtype=fft.dtype)
-
-        for i in range(nfreq):
-            for j in range(nchan):
-                fft_subband[i+nchan*j,:,0:chunksize] = fft[i,:,chunksize*j:chunksize*(j+1)]
-                fft_subband[i+nchan*j,:,chunksize:2*chunksize] = fft[i,:,nt-chunksize*(j+1):nt-chunksize*(j)]
-        return fft_subband
-
-    def upchannelize(self, t0, nt, efield, mask, nchan):
-        """ The 'efield' arg is a shape (nfreq,2,nt) complex array with electric field values, where
-        the middle index is polarziation.  Missing data is represented by (0+0j).  The 'mask' arg
-        is a shape (nfreq,2,nt) integer array which is 0 for missing data, and 1 for non-missing.
-        This code currently does not handle the mask. I need to add how the mask is handled. Currently, it just assumes the data is really zero.
-         """
-
-        assert efield.shape == (constants.chime_nfreq, 2, nt)
-        assert efield.dtype is np.complex64
-        
-        assert nt%(2*nchan)==0
-
-        ninteg = self._nframe_integrate
-        if nt % ninteg:
-            # This is currently true of all subclasses.
-            msg = ("Number of samples to accumulate (%d) must evenly divide"
-                   " number of samples (%d).")
-            msg = msg % (ninteg, nt)
-            raise ValueError(msg)
-        # But since we have increased the frequency sampling, the sampling time has increased by a factor of nchan. Thus the nframe_integrate must reduce by a factor of nchan. We need _nframe_integrate to be divisible by nchan.
-        assert ninteg %nchan ==0
-
-        # take fft of efield
-        efield_fft = fft(efield,axis=2,overwrite_x=False)
-
-        # heterodyne the array to get the sub bands
-        # we want to split each band into 16 sub bands. 
-        # To avoid interpolation, lets insist that the 
-        # FFT length is an integer multiple of twice the 
-        # number of sub bands.
-        efield_sub_fft = subbband(efield_fft,nchan=16,axis=2)
-
-        # invert fft
-        efield_sub = ifft(efield_sub_fft,axis=2,overwrite_x=False)
-
-        # square and integrate. mask is ignored anyway.
-        intensity, weight = self.square_accumulate(efield, mask=np.ones_like(efield), self._nframe_integrate/nchan)
-
-        frame = t0 // constants.timestamps_per_frame
-        
-        time0 = float(t0) / self._nframe_integrate + 1. / 2
-        time0 = time0 * self.delta_t
-
-
     def correlate(self, efield, mask, ninteg=None):
 
         # Moved ninteg to the argument to allow 
         if (ninteg is None) or (type(ninteg) is not int):
             ninteg = self._nframe_integrate
+
+
+        assert ninteg % self._upchannelize_freq == 0
+
+        if self._upchannelize_freq != 1:
+            efield, mask = _ref_upchannelize(efield, mask,
+                                             self._upchannelize_freq)
 
         e_squared = abs(efield)**2
         shape = efield.shape
@@ -231,5 +176,60 @@ class DiskWriteCorrelator(CallBackCorrelator):
 
 
 
+# Helper functions. Not part of the public API
+# --------------------------------------------
+
+def _subband(fft, nchan=16,axis=2):
+    # fft is an array of size constants.chime_nfreq, 2, nt
+    # nt is a multiple of 2*nchan.
+    # the output array is of shape nchan*constants.chime_nfreq, 2, nt/nchan
+
+    nfreq = fft.shape[0]
+    nt = fft.shape[2]
+    assert nt%(2*nchan)==0
+    chunksize = nt/2/nchan
+    
+    fft_subband = np.zeros([nchan*fft.shape[0],2,fft.shape[2]/nchan],dtype=fft.dtype)
+
+    for i in range(nfreq):
+        for j in range(nchan):
+            fft_subband[i+nchan*j,:,0:chunksize] = \
+                    fft[i,:,chunksize*j:chunksize*(j+1)]
+            fft_subband[i+nchan*j,:,chunksize:2*chunksize] = \
+                    fft[i,:,nt-chunksize*(j+1):nt-chunksize*(j)]
+    return fft_subband
+
+def _ref_upchannelize(efield, mask, nchan):
+    """ The 'efield' arg is a shape (nfreq,2,nt) complex array with electric
+    field values, where the middle index is polarziation.  Missing data is
+    represented by (0+0j).  The 'mask' arg is a shape (nfreq,2,nt) integer
+    array which is 0 for missing data, and 1 for non-missing.  This code
+    currently does not handle the mask. I need to add how the mask is handled.
+    Currently, it just assumes the data is really zero.  """
+
+    nt = efield.shape[2]
+    assert efield.shape == (constants.chime_nfreq, 2, nt)
+    assert efield.dtype is np.complex64
+
+    assert nt%(2*nchan)==0
+
+    # But since we have increased the frequency sampling, the sampling time has
+    # increased by a factor of nchan. Thus the nframe_integrate must reduce by
+    # a factor of nchan. We need _nframe_integrate to be divisible by nchan.
+
+    # take fft of efield
+    efield_fft = fft(efield,axis=2,overwrite_x=False)
+
+    # heterodyne the array to get the sub bands
+    # we want to split each band into 16 sub bands. 
+    # To avoid interpolation, lets insist that the 
+    # FFT length is an integer multiple of twice the 
+    # number of sub bands.
+    efield_sub_fft = subbband(efield_fft,nchan=16,axis=2)
+
+    # invert fft
+    efield_sub = ifft(efield_sub_fft,axis=2,overwrite_x=False)
+
+    return efield_new, mask_new
 
 
