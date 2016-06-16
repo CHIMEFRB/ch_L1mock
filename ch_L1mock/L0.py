@@ -254,13 +254,13 @@ def _subband(fft, nchan=16,axis=2):
     assert nt%(2*nchan)==0
     chunksize = nt/2/nchan
     
-    fft_subband = np.zeros([nchan*fft.shape[0],2,fft.shape[2]/nchan],dtype=fft.dtype)
+    fft_subband = np.zeros([nchan*fft.shape[0],fft.shape[1],fft.shape[2]/nchan],dtype=fft.dtype)
 
     for i in range(nfreq):
         for j in range(nchan):
-            fft_subband[i+nchan*j,:,0:chunksize] = \
+            fft_subband[nchan*i+j,:,0:chunksize] = \
                     fft[i,:,chunksize*j:chunksize*(j+1)]
-            fft_subband[i+nchan*j,:,chunksize:2*chunksize] = \
+            fft_subband[nchan*i+j,:,chunksize:2*chunksize] = \
                     fft[i,:,nt-chunksize*(j+1):nt-chunksize*(j)]
     return fft_subband
 
@@ -273,8 +273,9 @@ def _ref_upchannelize(efield, mask, nchan):
     Currently, it just assumes the data is really zero.  """
 
     nt = efield.shape[2]
-    assert efield.shape == (constants.chime_nfreq, 2, nt)
-    assert efield.dtype is np.complex64
+    assert efield.shape[0] == constants.FPGA_NFREQ # nfreq may be relaxed later
+    assert efield.shape[1] == 2
+    assert efield.dtype is np.dtype('complex64')
 
     assert nt%(2*nchan)==0
 
@@ -290,11 +291,13 @@ def _ref_upchannelize(efield, mask, nchan):
     # To avoid interpolation, lets insist that the 
     # FFT length is an integer multiple of twice the 
     # number of sub bands.
-    efield_sub_fft = subbband(efield_fft,nchan=16,axis=2)
+    efield_sub_fft = _subband(efield_fft,nchan,axis=2)
 
     # invert fft
     efield_sub = ifft(efield_sub_fft,axis=2,overwrite_x=False)
 
-    return efield_new, mask_new
+    mask_sub = np.ones_like(efield_sub) # fake mask for now.
+
+    return efield_sub, mask_sub
 
 

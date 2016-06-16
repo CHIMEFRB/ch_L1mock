@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import ch_vdif_assembler
 
-from ch_L1mock import L0
+from ch_L1mock import L0, constants
 
 
 class TestReferenceIntegrator(unittest.TestCase):
@@ -28,7 +28,6 @@ class TestReferenceIntegrator(unittest.TestCase):
         assembler.register_processor(p)
         assembler.run(stream)
 
-
 class TestToDisk(unittest.TestCase):
 
     def test_runs(self):
@@ -39,8 +38,50 @@ class TestToDisk(unittest.TestCase):
         assembler.run(stream)
 
 
+class TestUpChannelizing(unittest.TestCase):
 
+    def test__ref_upchannelize_zero_input(self):
+        """ Tests zero input return from _ref_upchannelize    """
+        zero_efield = np.zeros([constants.FPGA_NFREQ,2,1024],dtype=np.complex64)
+        mask = np.ones_like(zero_efield,dtype=np.uint8)
 
+        efield_sub, mask_sub = L0._ref_upchannelize(zero_efield,mask,16)
+        # check return shape
+        self.assertEquals(efield_sub.shape,(constants.FPGA_NFREQ*16,2,1024/16))
+        # check return values
+        self.assertTrue(np.all(efield_sub == np.zeros([
+            constants.FPGA_NFREQ*16,2,1024/16],dtype=np.complex64)))
+        self.assertTrue(np.all(mask_sub == np.ones([
+            constants.FPGA_NFREQ*16,2,1024/16],dtype=np.uint8)))
+        
+    def test__ref_upchannelize(self):
+        """ Tests the fourier transform functionality"""
+        # we create data from an easy but distinct fft form.
+        # we will use 32 sample fft.
+        efield_fft = np.zeros([1024,2,32],dtype=np.complex64)
+        efield_fft[0,0,::2] = np.arange(16)
+        
+        efield = L0.ifft(efield_fft,axis=2,overwrite_x=False)
+
+        # create the correct answer for nchan=16.
+        efield_sub_fft = np.zeros([1024*16,2,2],dtype=np.complex64)
+        efield_sub_fft[:16:2,0,0] = np.arange(8)
+        efield_sub_fft[1:16:2,0,1] = np.flipud(np.arange(8,16))
+        
+        # Call upchannelize with None mask
+        efield_sub, mask = L0._ref_upchannelize(efield,None,16)
+        self.assertTrue(np.allclose(L0.fft(efield_sub),efield_sub_fft,atol=1E-6))        
+
+    def test__subband_mixing(self):
+        """ Tests the shuffling in _subband """
+        data = np.zeros([1,1,32],dtype=np.uint8)
+        data[0,0,:] = np.arange(32)
+        chan_16_data = np.zeros([16,1,2],dtype=np.uint8)
+        chan_16_data[:,0,0] = np.arange(16)
+        chan_16_data[::-1,0,1] = np.arange(16,32)
+
+        self.assertTrue(np.all(L0._subband(data,nchan=16,axis=2) == chan_16_data))
+        
 # Testing Classes
 # ===============
 
