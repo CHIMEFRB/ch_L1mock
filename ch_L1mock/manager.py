@@ -2,9 +2,9 @@
 Driver classes for the L1 mock up.
 """
 
-from burst_search import preprocess
+import bonsai
 
-from ch_L1mock import datasource, L0, utils
+from ch_L1mock import datasource, preprocess, postprocess, action, L0, utils
 import ch_L1mock.tests.data as testdata
 
 
@@ -23,7 +23,7 @@ class Manager(object):
         self._configure_dedisperser()
         self._configure_preprocessing()
         self._configure_postprocessing()
-        self._configure_actions()
+        self._configure_action()
 
     def _configure_source(self):
         parameters = self._conf['source']
@@ -72,27 +72,56 @@ class Manager(object):
         self._datasource = ds
 
     def _configure_dedisperser(self):
-        pass
+        parameters = dict(self._conf['dedisperse'])
+        datasource = self._datasource
+        parameters['nchan'] = datasource.nfreq
+        parameters['nt_data'] = datasource.ntime_chunk
+        parameters['dt_sample'] = datasource.delta_t
+        # XXX Check that these are consistent with bonsai defn.
+        print datasource.delta_f, datasource.nfreq
+        parameters['freq_lo_MHz'] = (datasource.freq0
+                + datasource.nfreq * datasource.delta_f) / 1e6
+        parameters['freq_hi_MHz'] = datasource.freq0 / 1e6
+        print parameters
+        self._dedisperser = ConfigurableDedisperser(parameters)
 
     def _configure_preprocessing(self):
-        #self._dedisperser.preprocess_data = preprocess_chunk
-        pass
+        tasks = self._conf['preprocess']
+        if not isinstance(tasks, list):
+            tasks = [tasks]
+        for task_spec in tasks:
+            task_name = task_spec.pop('type')
+            task = preprocess.INDEX[task_name](**task_spec)
+            self._dedisperser.preprocess_tasks.append(task)
 
     def _configure_postprocessing(self):
-        #self._dedisperser.process_triggers = something something
-        pass
+        tasks = self._conf['postprocess']
+        if not isinstance(tasks, list):
+            tasks = [tasks]
+        for task_spec in tasks:
+            task_name = task_spec.pop('type')
+            task = postprocess.INDEX[task_name](**task_spec)
+            self._dedisperser.postprocess_tasks.append(task)
 
-    def _configure_actions(self):
-        pass
+    def _configure_action(self):
+        tasks = self._conf['action']
+        if not isinstance(tasks, list):
+            tasks = [tasks]
+        for task_spec in tasks:
+            task_name = task_spec.pop('type')
+            task = action.INDEX[task_name](**task_spec)
+            self._dedisperser.action.append(task)
 
     def _start(self):
         for t in self._daemon_threads:
             t.start()
+        self._dedisperser.spawn_slave_threads()
 
     def _finalize(self):
         for t in self._daemon_threads:
             t.check_join()
         self._datasource.finalize()
+        self._dedisperser.terminate()
 
     def run(self):
         self._start()
@@ -111,27 +140,37 @@ class Manager(object):
                 # No data ready. Keep waiting.
                 continue
             # We have data! Call in the dedisperser.
-            #self._dedisperser.run(data)
+            self._dedisperser.run(data, weights)
 
         self._finalize()
 
 
-def preprocess_chunk(data, mask):
-    subtract_masked_mean(data, mask)
-    # The following mostly ignore the mask and don't update it.
-    preprocess.remove_outliers(data, 5)
-    subtract_masked_mean(data, mask)
-    preprocess.remove_bad_times(data, 2)
-    preprocess.remove_noisy_freq(data, 3)
+class ConfigurableDedisperser(bonsai.Dedisperser):
 
+    @property
+    def preprocess_tasks(self):
+        return self._preprocess_tasks
 
-def subtract_masked_mean(data, mask):
-    num = np.sum(data * mask, -1)
-    den = np.sum(mask, -1)
-    den[den == 0] = 1
-    data -= (num / den)[:,None]
-    data[mask == 0] = 0
+    @property
+    def postprocess_tasks(self):
+        return self._postprocess_tasks
 
+    @property
+    def action(self):
+        return self._action
 
+    def __init__(self, config, ibeam=0, read_analytic_variance=True):
+        self._preprocess_tasks = []
+        self._postprocess_tasks = []
+        self._action = []
 
+    def preprocess_data(self, data, weights):
+        for t in self.preprocess_tasks:
+            t(self, data, weights)
 
+    def process_triggers(self, itree, triggers):
+        events = []
+        for t in self.postprocess_tasks:
+            events += t(self, itree, triggers)
+        for t in self.action:
+            t(self, itree, events)

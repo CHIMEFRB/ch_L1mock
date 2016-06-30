@@ -32,11 +32,10 @@ source:
 
 preprocess:
     # Parameters passed to data preprocessing.
-    detrend: subtract_mean
-    # Presence of this mapping triggers injection of simulated events.
-    inject:
-        rate: 0.001  # Hz
-        # more parameters
+    - type: thermal_noise_weight
+    - type: subtract_mean
+    - type: inject
+      rate: 0.001  # Hz
 
 
 dedisperse:
@@ -45,20 +44,16 @@ dedisperse:
     # Note that the parameters nchan, freq_lo_MHz, freq_hi_MHz, and dt_sample
     # do not appear. These are provided by the data source.
 
-    # A list of mappings specifying each tree.
-    trees:
-        - nds: 1
-          nt_tree: 512
-
-        - nds: 2
-          nt_tree: 256
-
-    # Parameters that could be tree dependant but aren't may be specified
-    # outside of *trees*
     tree_size: 4096
+    nthreads: 2
     nups: 1
     nsm: 1
-    sm_depth: 1
+    nbeta: 1
+    ndm_per_trigger: 64
+    nt_per_trigger: 64
+    beta_min: 0.
+    beta_max: 0.
+    nds: [1, 2, 4]
 
 
 postprocess:
@@ -66,7 +61,7 @@ postprocess:
     threshold: 10
 
 
-actions:
+action:
     # Specifies what action to take on trigger.
     # This is a list of mappings.
     - type: save_waterfall_plot

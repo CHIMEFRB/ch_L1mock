@@ -7,7 +7,6 @@ import threading
 import Queue
 
 
-
 class ExceptThread(threading.Thread):
     """Thread that can communicate exceptions."""
 

@@ -5,6 +5,30 @@
 
 ntime_chunk: 256
 
+
 source:
     type: disk
     data_dir: TESTDATA    # Special value for internal test data.
+
+
+preprocess:
+    - type: burst_search_default
+
+
+dedisperse:
+    tree_size: 4096
+    nthreads: 2
+    nups: 1
+    nsm: 1
+    nbeta: 1
+    ndm_per_trigger: 64
+    nt_per_trigger: 64
+    beta_min: 0.
+    beta_max: 0.
+    nds: [1, 2, 4]
+
+
+postprocess: []
+
+action: []
+
