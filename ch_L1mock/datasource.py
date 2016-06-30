@@ -86,6 +86,7 @@ class DataSource(object):
         Returns
         -------
         data : numpy array with shape (nfreq, ntime) and dtype np.float32.
+        weights : numpy array with shape (nfreq, ntime) and dtype np.float32.
 
         Raises
         ------
@@ -95,8 +96,8 @@ class DataSource(object):
 
         self._current_chunk += 1
         data = np.empty((self.nfreq, self.ntime_chunk), dtype=np.float32)
-        mask = np.zeros((self.nfreq, self.ntime_chunk), dtype=np.uint8)
-        return data, mask
+        weights = np.ones_like(data)
+        return data, weights
 
     def finalize(self):
         pass
@@ -191,10 +192,10 @@ class vdifSource(DataSource):
     def _initialize_out_chunk(self):
         self._out_chunk = np.empty((self.nfreq, self.ntime_chunk),
                                    dtype=np.float32)
-        self._out_mask = np.empty((self.nfreq, self.ntime_chunk),
-                                  dtype=np.uint8)
+        self._out_weights = np.empty((self.nfreq, self.ntime_chunk),
+                                  dtype=np.float32)
 
-    def _absorb_chunk(self, time0, intensity, weight):
+    def _absorb_chunk(self, time0, intensity, weights):
         # If this is the first chunk, initialize the stream start time.
         if self._first_time0 is None:
             self._first_time0 = time0
@@ -205,7 +206,7 @@ class vdifSource(DataSource):
         start_ind = int(round((time0 - self._first_time0) / self.delta_t))
 
         # Process the data.
-        data, mask = _format_intensity_weight(intensity, weight)
+        data, weights = _format_intensity_weights(intensity, weights)
 
         # Fill in and "gap" indecies with zeros.
         if start_ind > total_samples:
@@ -217,10 +218,10 @@ class vdifSource(DataSource):
                 left_edge = out_edges[ii] % ntime_out
                 right_edge = (out_edges[ii + 1] - 1) % ntime_out + 1
                 self._out_chunk[:, left_edge:right_edge] = 0
-                self._out_mask[:, left_edge:right_edge] = 0
+                self._out_weights[:, left_edge:right_edge] = 0
                 if right_edge == ntime_out:
                     self._correlated_data_queue.put((
-                        self._out_chunk, self._out_mask))
+                        self._out_chunk, self._out_weights))
                     self._initialize_out_chunk()
 
         # Now deal with samples in the chunk.
@@ -235,11 +236,11 @@ class vdifSource(DataSource):
             right_edge_in = in_edges[ii + 1]
             self._out_chunk[:, left_edge_out:right_edge_out] = \
                     data[:, left_edge_in:right_edge_in]
-            self._out_mask[:, left_edge_out:right_edge_out] = \
-                    mask[:, left_edge_in:right_edge_in]
+            self._out_weights[:, left_edge_out:right_edge_out] = \
+                    weights[:, left_edge_in:right_edge_in]
             if right_edge_out == ntime_out:
                 self._correlated_data_queue.put((
-                    self._out_chunk, self._out_mask))
+                    self._out_chunk, self._out_weights))
                 self._initialize_out_chunk()
 
         self._total_samples = start_ind + ntime_in
@@ -250,14 +251,14 @@ class vdifSource(DataSource):
 
     def yield_chunk(self, timeout=None):
         try:
-            data_and_mask = self._correlated_data_queue.get(timeout=timeout)
+            data_and_weights = self._correlated_data_queue.get(timeout=timeout)
         except Queue.Empty:
             raise NoData
-        if data_and_mask is None:
+        if data_and_weights is None:
             raise StopIteration()
         else:
             self._current_chunk += 1
-            return data_and_mask
+            return data_and_weights
 
 
 class DiskSource(DataSource):
@@ -317,34 +318,39 @@ class DiskSource(DataSource):
         datasets = self._stream.yield_chunk(ntime_read)
         time = datasets['time']
         intensity = datasets['intensity']
-        weight = datasets['weight']
-        data, mask = _format_intensity_weight(intensity, weight)
+        weights = datasets['weight']
+        data, weights = _format_intensity_weights(intensity, weights)
 
         # Deal with lost chunks and data gaps!
         if data.shape[-1] != self.ntime_chunk:
             new_shape = data.shape[:-1] + (self.ntime_chunk,)
             data_new = np.zeros(new_shape, dtype=data.dtype)
-            mask_new = np.zeros(new_shape, dtype=mask.dtype)
+            weights_new = np.zeros(new_shape, dtype=weights.dtype)
             inds = np.round((time - start_of_chunk) / self.delta_t).astype(int)
             # This is probably very slow. Should try to convert to slice where
             # possible.
             data_new[...,inds] = data
-            mask_new[...,inds] = mask
+            weights_new[...,inds] = weights
             data = data_new
-            mask = mask_new
+            weights = weights_new
         elif not np.allclose(np.diff(time), self.delta_t):
             raise ValueError("Non uniform time axis.")
 
         self._current_chunk += 1
-        return data, mask
+        return data, weights
 
 
-def _format_intensity_weight(intensity, weight):
+def _format_intensity_weights(intensity, weights):
     in_shape = intensity.shape
     data = np.empty((in_shape[0], in_shape[2]), dtype=np.float32)
+    weights_new = np.empty_like(data)
     data[:,:] = intensity[:,0,:]
     data += intensity[:,1,:]
-    mask = np.ones(data.shape, dtype=np.uint8)
+    # Taking care not to overflow.
+    weights_new[:] = weights[:,0,:]
+    weights_new += weights[:,1,:]
     # Mask data with less than 50% weight.
-    mask[np.logical_or(weight[:,0,:] < 128, weight[:,1,:] < 128)] = 0
-    return data, mask
+    weights_new[np.logical_or(weights[:,0,:] < 128, weights[:,1,:] < 128)] = 0
+    # Normalize.
+    weights_new /= 255 * 2
+    return data, weights_new

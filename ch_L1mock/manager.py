@@ -1,5 +1,5 @@
 """
-Driver class for the L1 mock up.
+Driver classes for the L1 mock up.
 """
 
 from burst_search import preprocess
@@ -103,7 +103,7 @@ class Manager(object):
                 t.check()
             # Get some data.
             try:
-                data, mask = self._datasource.yield_chunk(timeout=0.1)
+                data, weights = self._datasource.yield_chunk(timeout=0.1)
             except StopIteration:
                 # We're done.
                 break
