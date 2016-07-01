@@ -91,7 +91,7 @@ class Manager(object):
             tasks = [tasks]
         for task_spec in tasks:
             task_name = task_spec.pop('type')
-            task = preprocess.INDEX[task_name](**task_spec)
+            task = preprocess.INDEX[task_name](self._dedisperser, **task_spec)
             self._dedisperser.preprocess_tasks.append(task)
 
     def _configure_postprocessing(self):
@@ -100,7 +100,7 @@ class Manager(object):
             tasks = [tasks]
         for task_spec in tasks:
             task_name = task_spec.pop('type')
-            task = postprocess.INDEX[task_name](**task_spec)
+            task = postprocess.INDEX[task_name](self._dedisperser, **task_spec)
             self._dedisperser.postprocess_tasks.append(task)
 
     def _configure_action(self):
@@ -109,7 +109,7 @@ class Manager(object):
             tasks = [tasks]
         for task_spec in tasks:
             task_name = task_spec.pop('type')
-            task = action.INDEX[task_name](**task_spec)
+            task = action.INDEX[task_name](self._dedisperser, **task_spec)
             self._dedisperser.action.append(task)
 
     def _start(self):
@@ -166,11 +166,11 @@ class ConfigurableDedisperser(bonsai.Dedisperser):
 
     def preprocess_data(self, data, weights):
         for t in self.preprocess_tasks:
-            t(self, data, weights)
+            t(data, weights)
 
     def process_triggers(self, itree, triggers):
         events = []
         for t in self.postprocess_tasks:
-            events += t(self, itree, triggers)
+            events += t(itree, triggers)
         for t in self.action:
-            t(self, itree, events)
+            t(itree, events)
