@@ -1,12 +1,10 @@
 """Library of L1 mock preprocessing tasks.
 
-Preprocessing tasks are classes that:
-    1) Can be initialized with one positional argument (the dedisperser) and
-    keyword arguments, and
-    2) Are callable with the signature `task_instance(dedisperser, data, weights)` and
-    returns `None`.
+Preprocessors modify the data and weights in place prior to dedispersion. For
+more information see the bonsai header file, especially
+dedisperser::preprocess_data.
 
-Feel free to write your own and register them in the INDEX.
+Feel free to write your own and add them to the INDEX.
 
 """
 
@@ -16,7 +14,12 @@ import numpy as np
 
 
 class BasePreprocessor(object):
-    """Abstract base class for preprocessors."""
+    """Abstract base class for preprocessors.
+
+    All preprocessors must inherit from this.  When subclassing, you may add
+    only keyword arguments to __init__.
+
+    """
 
     __metaclass__ = abc.ABCMeta
 
@@ -33,6 +36,7 @@ class BasePreprocessor(object):
 
 
 class BurstSearchInject(BasePreprocessor):
+    """Inject simulated events using Burst Search package"""
 
     def __init__(self, dedisperser, **kwargs):
         super(BurstSearchInject, self).__init__(dedisperser)
@@ -62,6 +66,7 @@ class BurstSearchInject(BasePreprocessor):
 
 
 class BurstSearchDefault(BasePreprocessor):
+    """Default preprocessing base on the Burst Search package."""
 
     def __init__(self, dedisperser):
         super(BurstSearchDefault, self).__init__(dedisperser)
@@ -115,6 +120,8 @@ INDEX = {
         'thermal_noise_weight' : ThermalNoiseWeight,
         }
 
+
+# Helper functions.
 
 def _weighted_time_mean(data, weights):
     num = np.sum(data * weights, -1)

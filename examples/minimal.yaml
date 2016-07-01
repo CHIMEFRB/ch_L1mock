@@ -1,6 +1,7 @@
 # Minimal configuration file for run-L1-mock program.
 # 
-# All parameters here should be implemented.
+# All parameters here should be implemented and this
+# configuration should work.
 
 
 ntime_chunk: 256

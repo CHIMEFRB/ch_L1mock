@@ -1,13 +1,11 @@
-"""Library of L1 mock postprocessing tasks.
+"""Library of L1 mock post processing tasks.
 
-Postprocessing tasks are classes that:
-    1) Can be initialized with one posiitonal arguemnt (dedisperser) only keyword arguments, and
-    2) Are callable with the signature `task_instance(itree,
-    trigger_set)`
-    4) Return a list of Event objects (which may be empty).
-    3) They *may* modify trigger_set in place.
+Post processing tasks work on the dedispersed, coarse-grained data.
+They may modify this data in place, return a list of ``Event`` objects
+or both.  For more information see the Bonsai header file, especially
+dedisperser::process_triggers.
 
-Feel free to write your own and register them in the INDEX.
+Feel free to write your own and add them to INDEX.
 
 """
 
@@ -18,9 +16,9 @@ import numpy as np
 
 
 class Event(object):
-    """Represents an L1 trigger.
+    """Represents an L1 event.
 
-    Should eventually contain all/most information that an L1 trigger packet
+    Should eventually contain all/most information that an L1 output packet
     would.
 
     """
@@ -32,7 +30,13 @@ class Event(object):
 
 
 class BasePostProcessor(object):
-    """Abstract base class for post processors."""
+    """Abstract base class for post processors.
+
+    All post processors must inherit from this class.
+
+    When sub-classing, only keyword arguments may be added to the constructor.
+
+    """
 
     __metaclass__ = abc.ABCMeta
 
@@ -50,6 +54,7 @@ class BasePostProcessor(object):
 
 
 class SimpleThreshold(BasePostProcessor):
+    """Anything over the threshold."""
 
     def __init__(self, dedisperser, threshold=10.):
         super(SimpleThreshold, self).__init__(dedisperser)

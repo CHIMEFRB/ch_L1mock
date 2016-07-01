@@ -1,48 +1,67 @@
 # Configuration file for run-L1-mock program.
 #
 # This file defines the configuration file format. It is a road-map,
-# with no guarantee that any of these parameters are used or implemented.
+# with no guarantee that any of these parameters are used or 
+# functionality implemented.
 
 
 # Global parameters
 
 ntime_chunk: 1024
 
+
+ # Source: where the data come from.
 source:
-    # Where the data come from.
+    # Correlate vdif data using a vdif assembler.
     type: vdif
     # Where to get the vdif packets with parameters. Should support all
-    # functionality of corr-vdif.
+    # functionality of the corr-vdif program.
     vdif_source:
         type: network
+
     # Another example of a vdif source
     # source:
     #     type: moose_acq
     #     acq_name: 20151026T084446Z_chime_beamformed
+
+    # Or yet another
+    # source:
+    #     type: simulate
+
     nframe_integrate: 24
     nchan_upsamp: 16
 
 # Or a completely different source type.
 # source:
+#     # Read intensity data from disk.
 #     type: disk
 #     data_dir: path/to/data/
 
 # Plan to have source types: vdif, from_disk, network
 
 
+# The preprocess, postprocess, and action sections specify a list of tasks to
+# perform at each stage for processing. Tasks can be found in the corresponding
+# submodule of ch_L1mock (i.e. ch_L1mock.preprocess, etc.). Each entry of the
+# task lists must have 'type' parameter specifying what kind of task to
+# perform, as found in the module's INDEX (i.e. ch_L1mock.preprocess.INDEX).
+# All other parameters are passed to the corresponding classes constructor.
+
+
+# Preprocess: what to do with the data before dedispersing.
 preprocess:
-    # Parameters passed to data preprocessing.
+    - type: inject_simulated
+      rate: 0.001  # Hz
     - type: thermal_noise_weight
     - type: subtract_mean
-    - type: inject
-      rate: 0.001  # Hz
 
 
+# Dedisperser (bonsai).
+
+# Note that the parameters nchan, freq_lo_MHz, freq_hi_MHz, and dt_sample
+# do not appear. These are provided by the data source. All other parameters
+# are specified as in bonsai.
 dedisperse:
-    # Parameters passed to the dedisperser (bonsai)
-
-    # Note that the parameters nchan, freq_lo_MHz, freq_hi_MHz, and dt_sample
-    # do not appear. These are provided by the data source.
 
     tree_size: 4096
     nthreads: 2
@@ -56,11 +75,13 @@ dedisperse:
     nds: [1, 2, 4]
 
 
+# Postprocess: what to do with dedispersed and coarse-grained data.
 postprocess:
-    # Parameters passed to the sifter.
-    threshold: 10
+    - type: simple_threshold
+      threshold: 10
 
 
+# Action: what to do with events identified in post processing.
 action:
     # Specifies what action to take on trigger.
     # This is a list of mappings.
