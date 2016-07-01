@@ -14,8 +14,9 @@ source:
 preprocess:
     - type: thermal_noise_weight
     - type: burst_search_inject
-      rate: 0.05 # Hz
-      fluence: [50, 400]
+      rate: 0.02 # Hz
+      fluence: [50, 200]
+      dm: [20, 200]
     - type: burst_search_default
 
 
