@@ -1,72 +1,87 @@
 # Configuration file for run-L1-mock program.
 #
 # This file defines the configuration file format. It is a road-map,
-# with no guarantee that any of these parameters are used or implemented.
+# with no guarantee that any of these parameters are used or 
+# functionality implemented.
 
 
 # Global parameters
 
 ntime_chunk: 1024
 
+
+ # Source: where the data come from.
 source:
-    # Where the data come from.
+    # Correlate vdif data using a vdif assembler.
     type: vdif
     # Where to get the vdif packets with parameters. Should support all
-    # functionality of corr-vdif.
+    # functionality of the corr-vdif program.
     vdif_source:
         type: network
+
     # Another example of a vdif source
-    # source:
+    # vdif_source:
     #     type: moose_acq
     #     acq_name: 20151026T084446Z_chime_beamformed
+
+    # Or yet another
+    # vdif_source:
+    #     type: simulate
+
     nframe_integrate: 24
     nchan_upsamp: 16
 
 # Or a completely different source type.
 # source:
+#     # Read intensity data from disk.
 #     type: disk
 #     data_dir: path/to/data/
 
 # Plan to have source types: vdif, from_disk, network
 
 
+# The 'preprocess', 'postprocess', and 'action' sections specify a list of tasks to
+# perform at each stage for processing. Tasks can be found in the corresponding
+# submodule of ch_L1mock (i.e. ch_L1mock.preprocess, etc.). Each entry of the
+# task lists must have 'type' parameter specifying what kind of task to
+# perform, as found in the module's INDEX (i.e. ch_L1mock.preprocess.INDEX).
+# All other parameters are passed to the corresponding classes constructor.
+
+
+# Preprocess: what to do with the data before dedispersing.
 preprocess:
-    # Parameters passed to data preprocessing.
-    detrend: subtract_mean
-    # Presence of this mapping triggers injection of simulated events.
-    inject:
-        rate: 0.001  # Hz
-        # more parameters
+    - type: inject_simulated
+      rate: 0.001  # Hz
+    - type: thermal_noise_weight
+    - type: subtract_mean
 
 
+# Dedisperse (bonsai).
+
+# Note that the parameters nchan, freq_lo_MHz, freq_hi_MHz, and dt_sample
+# do not appear. These are provided by the data source. All other parameters
+# are specified as in bonsai (see bonsai.hpp, class ConfigParams).
 dedisperse:
-    # Parameters passed to the dedisperser (bonsai)
-
-    # Note that the parameters nchan, freq_lo_MHz, freq_hi_MHz, and dt_sample
-    # do not appear. These are provided by the data source.
-
-    # A list of mappings specifying each tree.
-    trees:
-        - nds: 1
-          nt_tree: 512
-
-        - nds: 2
-          nt_tree: 256
-
-    # Parameters that could be tree dependant but aren't may be specified
-    # outside of *trees*
     tree_size: 4096
+    nthreads: 2
     nups: 1
     nsm: 1
-    sm_depth: 1
+    nbeta: 1
+    ndm_per_trigger: 64
+    nt_per_trigger: 64
+    beta_min: 0.
+    beta_max: 0.
+    nds: [1, 2, 4]
 
 
+# Post process: what to do with dedispersed and coarse-grained data.
 postprocess:
-    # Parameters passed to the sifter.
-    threshold: 10
+    - type: simple_threshold
+      threshold: 10
 
 
-actions:
+# Action: what to do with events identified in post processing.
+action:
     # Specifies what action to take on trigger.
     # This is a list of mappings.
     - type: save_waterfall_plot

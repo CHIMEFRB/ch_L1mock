@@ -1,10 +1,44 @@
 # Minimal configuration file for run-L1-mock program.
 # 
-# All parameters here should be implemented.
+# All parameters here should be implemented and this
+# configuration should work.
 
 
 ntime_chunk: 256
 
+
 source:
     type: disk
     data_dir: TESTDATA    # Special value for internal test data.
+
+
+preprocess:
+    - type: thermal_noise_weight
+    - type: burst_search_inject
+      rate: 0.02 # Hz
+      fluence: [50, 200]
+      dm: [20, 200]
+    - type: burst_search_default
+
+
+dedisperse:
+    tree_size: 4096
+    nthreads: 2
+    nups: 1
+    nsm: 1
+    nbeta: 1
+    ndm_per_trigger: 64
+    nt_per_trigger: 64
+    beta_min: 0.
+    beta_max: 0.
+    nds: [1, 2, 4]
+
+
+postprocess:
+    - type: simple_threshold
+      threshold: 8
+
+
+action:
+    - type: print
+
