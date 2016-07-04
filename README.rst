@@ -26,7 +26,7 @@ Installation
 ------------
 
 After cloning the repository, enter the repository directory. To install the
-dependancies::
+dependencies::
 
     pip install -r requirements.txt
 
@@ -43,5 +43,5 @@ Running the L1 Mock
 -------------------
 
 Installing this package will add the executable ``run-L1-mock`` to your path. The
-program accepts a single parameter, a YAML config file. Example configuration are
+program accepts a single parameter, a YAML config file. Example configurations are
 available in the 'examples' directory.

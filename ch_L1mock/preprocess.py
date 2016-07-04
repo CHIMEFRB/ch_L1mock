@@ -4,7 +4,7 @@ Preprocessors modify the data and weights in place prior to dedispersion. For
 more information see the bonsai header file, especially
 dedisperser::preprocess_data.
 
-Feel free to write your own and add them to the INDEX.
+Feel free to write your own preprocessing task and add it to the INDEX.
 
 """
 
@@ -110,7 +110,6 @@ class ThermalNoiseWeight(BasePreprocessor):
         std_thermal[bad_freq] = 1
         weights /= std_thermal[:, None]
         weights[bad_freq] = 0
-
 
 
 # Index of preprocessing tasks used for lookup by manager.Manager.

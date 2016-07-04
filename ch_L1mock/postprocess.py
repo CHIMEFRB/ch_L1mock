@@ -5,7 +5,7 @@ They may modify this data in place, return a list of ``Event`` objects
 or both.  For more information see the Bonsai header file, especially
 dedisperser::process_triggers.
 
-Feel free to write your own and add them to INDEX.
+Feel free to write your own task and add it to INDEX.
 
 """
 
@@ -26,7 +26,6 @@ class Event(object):
     def __init__(self, dedisperser, itree, trigger_set, index):
         self._index = index
         self._snr = trigger_set.trigger_max[index]
-
 
 
 class BasePostProcessor(object):
@@ -52,7 +51,6 @@ class BasePostProcessor(object):
         return []
 
 
-
 class SimpleThreshold(BasePostProcessor):
     """Anything over the threshold."""
 
@@ -69,7 +67,6 @@ class SimpleThreshold(BasePostProcessor):
             events.append(Event(self.dedisperser, itree, trigger_set,
                 tuple(event_ind)))
         return events
-
 
 
 INDEX = {

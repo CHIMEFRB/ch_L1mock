@@ -1,11 +1,9 @@
-"""Library of L1 mock action tasks.
-
-Action tasks to be performed on L1 events.
+"""Library of L1 mock action tasks to be performed on L1 events.
 
 For more information see the Bonsai header file, especially
 dedisperser::process_triggers.
 
-Feel free to write your own and add them to the INDEX.
+Feel free to write your own task and add it to the INDEX.
 
 """
 
@@ -36,7 +34,7 @@ class BaseAction(object):
 
 
 class Print(object):
-    """Just print to std out."""
+    """Just print to standard out."""
 
     def __init__(self, dediserser):
         pass

@@ -20,12 +20,12 @@ source:
         type: network
 
     # Another example of a vdif source
-    # source:
+    # vdif_source:
     #     type: moose_acq
     #     acq_name: 20151026T084446Z_chime_beamformed
 
     # Or yet another
-    # source:
+    # vdif_source:
     #     type: simulate
 
     nframe_integrate: 24
@@ -40,7 +40,7 @@ source:
 # Plan to have source types: vdif, from_disk, network
 
 
-# The preprocess, postprocess, and action sections specify a list of tasks to
+# The 'preprocess', 'postprocess', and 'action' sections specify a list of tasks to
 # perform at each stage for processing. Tasks can be found in the corresponding
 # submodule of ch_L1mock (i.e. ch_L1mock.preprocess, etc.). Each entry of the
 # task lists must have 'type' parameter specifying what kind of task to
@@ -56,13 +56,12 @@ preprocess:
     - type: subtract_mean
 
 
-# Dedisperser (bonsai).
+# Dedisperse (bonsai).
 
 # Note that the parameters nchan, freq_lo_MHz, freq_hi_MHz, and dt_sample
 # do not appear. These are provided by the data source. All other parameters
-# are specified as in bonsai.
+# are specified as in bonsai (see bonsai.hpp, class ConfigParams).
 dedisperse:
-
     tree_size: 4096
     nthreads: 2
     nups: 1
@@ -75,7 +74,7 @@ dedisperse:
     nds: [1, 2, 4]
 
 
-# Postprocess: what to do with dedispersed and coarse-grained data.
+# Post process: what to do with dedispersed and coarse-grained data.
 postprocess:
     - type: simple_threshold
       threshold: 10
