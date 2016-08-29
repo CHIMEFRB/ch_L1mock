@@ -11,8 +11,8 @@ from burst_search import datasource, manager, preprocess
 import constants
 
 PARAMETER_DEFAULTS = {
-        'time_block' : 100,    # Seconds.
-        'overlap' : 10,
+        'time_block' : 1,    # Seconds.
+        'overlap' : 0.1,
         #'time_block' : 3,    # Seconds.
         #'overlap' : 1,
         'max_dm' : 500.,
@@ -75,6 +75,7 @@ class DataSource(datasource.DataSource):
         return t0, data
 
     def absorb_chunk(self, time0, intensity, weight):
+        print "absorbing chunk!"
         t0, intensity, weight = preprocess_chunk(time0, intensity, weight)
         if self._ntime_absorbed == 0:
             self._this_buf_t0 = t0

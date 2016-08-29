@@ -8,7 +8,7 @@ import argparse
 import sys
 import logging
 
-import ch_vdif_assembler
+import vdif_assembler
 
 from ch_L1mock import L0
 
@@ -121,56 +121,71 @@ def main(p):
 
     args = p.parse_args()
 
-    if args.source == 'moose-acq':
-        stream = ch_vdif_assembler.moose_acquisition(args.acqname)
-    elif args.source == 'simulate':
-        stream = ch_vdif_assembler.make_simulated_stream(
-                nsec=args.duration, gbps=args.rate)
-    elif args.source == 'file-list':
-        with file(args.filelist) as f:
-            filelist = f.read().splitlines()
-        stream = ch_vdif_assembler.make_file_stream(filelist)
-    elif args.source == 'network':
-        stream = ch_vdif_assembler.make_network_stream()
-    else:
-        # For debugging. Should never happen.
-        raise RuntimeError()
+    #we must ignore the stream object
+    #if args.source == 'moose-acq':
+    #    stream = ch_vdif_assembler.moose_acquisition(args.acqname)
+    #elif args.source == 'simulate':
+    #    stream = ch_vdif_assembler.make_simulated_stream(
+    #            nsec=args.duration, gbps=args.rate)
+    #elif args.source == 'file-list':
+    #    with file(args.filelist) as f:
+    #        filelist = f.read().splitlines()
+    #    stream = ch_vdif_assembler.make_file_stream(filelist)
+    #elif args.source == 'network':
+    #    stream = ch_vdif_assembler.make_network_stream()
+    #else:
+    #    # For debugging. Should never happen.
+    #    raise RuntimeError()
 
-    if args.action == 'todisk':
-        p = L0.DiskWriteCorrelator(
-                nframe_integrate=args.nframe_integrate,
-                outdir=args.outdir,
-                )
-    elif args.action == 'burst-search':
-        p = L0.CallBackCorrelator(
-                nframe_integrate=args.nframe_integrate,
-                )
-        import matplotlib
-        matplotlib.use('Agg')
-        from ch_L1mock import burst_search_interface
-        search_manager = burst_search_interface.Manager(
-                p,
-                trigger_action='save_plot_dm,print',
-                )
-        if args.todisk:
-            from ch_frb_io import stream as io_stream
-            todisk_stream = io_stream.StreamWriter(args.outdir)
-            p.add_diskwrite_callback(todisk_stream)
+    p = L0.CallBackCorrelator(
+        nframe_integrate=args.nframe_integrate,
+        )
+    import matplotlib
+    matplotlib.use('Agg')
+    from ch_L1mock import burst_search_interface
+    search_manager = burst_search_interface.Manager(
+            p,
+            trigger_action='save_plot_dm,print',
+            )
 
-        # Initialize the search
-        import threading
-        search_thread = threading.Thread(
-                target=search_manager.process_all,
-                )
-        search_thread.daemon = True
-    elif args.action == 'serve':
-        raise NotImplementedError()
 
-    assembler = ch_vdif_assembler.assembler(write_to_disk=args.vdif_todisk)
+    #no options yet
+    #if args.action == 'todisk':
+    #    p = L0.DiskWriteCorrelator(
+    #            nframe_integrate=args.nframe_integrate,
+    #            outdir=args.outdir,
+    #            )
+    #elif args.action == 'burst-search':
+    #    p = L0.CallBackCorrelator(
+    #            nframe_integrate=args.nframe_integrate,
+    #            )
+    #    import matplotlib
+    #    matplotlib.use('Agg')
+    #    from ch_L1mock import burst_search_interface
+    #    search_manager = burst_search_interface.Manager(
+    #            p,
+    #            trigger_action='save_plot_dm,print',
+    #            )
+    #    if args.todisk:
+    #        from ch_frb_io import stream as io_stream
+    #        todisk_stream = io_stream.StreamWriter(args.outdir)
+    #        p.add_diskwrite_callback(todisk_stream)
+
+    # Initialize the search
+    import threading
+    search_thread = threading.Thread(
+            target=search_manager.process_all,
+            )
+    search_thread.daemon = True
+
+    #no upchannelization yet
+    #assembler = vdif_assembler.assembler('network', '10050',False,4)
+    assembler = vdif_assembler.assembler('disk', 'test.txt', False,4)
     assembler.register_processor(p)
     if args.action == 'burst-search':
         search_thread.start()
-    assembler.run(stream)
+    print "burst_search started!"
+    assembler.run()
     if args.action == 'burst-search':
         logger.info('Stream ended, waiting for burst search to finish.')
         search_thread.join()

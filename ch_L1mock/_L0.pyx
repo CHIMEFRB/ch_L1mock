@@ -14,10 +14,13 @@ cimport cython
 
 np.import_array()
 
+#do not square/sum here!
+#cdef extern from "ch_vdif_assembler_kernels.hpp" namespace "ch_vdif_assembler":
+#    void _sum16_auto_correlations(int &sum, int &count, uint8_t *buf) nogil
 
-cdef extern from "ch_vdif_assembler_kernels.hpp" namespace "ch_vdif_assembler":
-    void _sum16_auto_correlations(int &sum, int &count, uint8_t *buf) nogil
-
+def convert_to_python(np.ndarray[dtype=np.uint8_t, ndim=3, mode="c"] byte_data not None,
+    np.ndarray[dtype=np.uint8_t, ndim=3, mode="c"] mask not None):
+        return byte_data.astype(np.float32), mask
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -61,11 +64,12 @@ def square_accumulate(
                         count = 0
                         t_offset = kk * nsamp_integrate
                         for hh in range(0, nsamp_integrate, 16):
-                            _sum16_auto_correlations(
-                                    sum,
-                                    count,
-                                    &byte_data[ii,jj,t_offset + hh],
-                                    )
+                            #_sum16_auto_correlations(
+                            #        sum,
+                            #        count,
+                            #        &byte_data[ii,jj,t_offset + hh],
+                            #        )
+                            pass
                         if count == 0:
                             tmp_inten = 0
                             tmp_weight = 0

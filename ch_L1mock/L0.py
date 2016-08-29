@@ -12,7 +12,7 @@ import logging
 import time
 
 import numpy as np
-import ch_vdif_assembler
+import vdif_assembler
 
 from ch_frb_io import stream as io
 import constants
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Vdif processors
 # ===============
 
-class BaseCorrelator(ch_vdif_assembler.processor):
+class BaseCorrelator(vdif_assembler.processor):
     """Abstract base class for correlators.
 
     Subclasses should implement `post_process_intensity` to do something with
@@ -71,7 +71,11 @@ class BaseCorrelator(ch_vdif_assembler.processor):
     def square_accumulate(self, efield, mask):
         return _L0.square_accumulate(efield, self._nframe_integrate)
 
+    def convert_to_python(self, efield, mask):
+        return _L0.convert_to_python(efield, self._nframe_integrate)
+
     def process_chunk(self, t0, nt, efield, mask):
+        print "processing chunk!"
         ninteg = self._nframe_integrate
         if nt % ninteg:
             # This is currently true of all subclasses.
@@ -81,11 +85,12 @@ class BaseCorrelator(ch_vdif_assembler.processor):
             raise ValueError(msg)
 
         #t0 = time.time()
-        intensity, weight = self.square_accumulate(efield, mask)
+        #intensity, weight = self.square_accumulate(efield, mask)
+        intensity, weight = self.convert_to_python(efield, mask)
         #print "Chunk integration time:", time.time() - t0
 
-        time0 = float(t0) / self._nframe_integrate + 1. / 2
-        time0 = time0 * self.delta_t
+        # time0 = float(t0) / self._nframe_integrate + 1. / 2
+        # time0 = time0 * self.delta_t
 
         self.post_process_intensity(time0, intensity, weight)
 
