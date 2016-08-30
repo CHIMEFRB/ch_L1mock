@@ -109,6 +109,11 @@ burstsearch.add_argument('--todisk',
         action='store_true',
         help="Also stream correlated data to disk as in the 'todisk' action.",
         )
+burstsearch.add_argument('--port',
+        type=str,
+        default='10050',
+        help="port to receive vdif from correlator",
+        )
 
 serve = action_subparsers.add_parser('serve',
         help='Serve correlated data over the network. NOT IMPLEMENTED.',
@@ -179,8 +184,8 @@ def main(p):
     search_thread.daemon = True
 
     #no upchannelization yet
-    #assembler = vdif_assembler.assembler('network', '10050',False,4)
-    assembler = vdif_assembler.assembler('disk', 'test.txt', False,4)
+    assembler = vdif_assembler.assembler('network', args.port,False,4)
+    #assembler = vdif_assembler.assembler('disk', 'test.txt', False,4)
     assembler.register_processor(p)
     if args.action == 'burst-search':
         search_thread.start()
