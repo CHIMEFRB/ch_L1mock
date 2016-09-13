@@ -147,3 +147,135 @@ class Manager(manager.Manager):
 
         """
         return t0, data
+
+
+#### ch_frb_io ####
+## Adapted from ch_L1mock.datasource
+
+class DiskSource(datasource.DataSource):
+
+    def __init__(self, datadir, **kwargs):
+        super(DataSource, self).__init__(
+                source=datadir,
+                **kwargs
+                )
+
+        self._stream = io.StreamReader(datadir)
+        freq = self._stream.freq
+        delta_f = np.mean(np.diff(freq))
+        if not np.allclose(np.diff(freq), delta_f):
+            raise ValueError("Frequencies not uniformly spaced")
+
+        self._delta_f = delta_f
+        self._freq0 = freq[0]
+        self._nfreq = len(freq)
+        self._delta_t_native = np.median(np.diff(self._stream.time))
+
+        # Don't know these.
+        self._mjd = 0
+        self._start_time = self._stream.time[0]
+
+        gran = 512   # pretty arbitrary.
+        ntime_block = self._block / self._delta_t_native
+        ntime_block = int(np.ceil(ntime_block / gran) * gran)
+        ntime_overlap = self._overlap / self._delta_t_native
+        ntime_overlap = int(np.ceil(ntime_overlap / gran) * gran)
+        self._ntime_block = ntime_block
+        self._ntime_overlap = ntime_overlap
+
+        self._nblocks_fetched = 0
+
+    @property
+    def nblocks_left(self):
+        last_time = self._stream.time[-1]
+        nblocks_total = (last_time - self.start_time) // (self._ntime_block -
+                self._ntime_overlap)
+        return int(nblocks_total) - self.nblocks_fetched
+
+    @property
+    def nblocks_fetched(self):
+        return self._nblocks_fetched
+
+    def get_next_block_native(self):
+        start_of_chunk = self.start_time + (self._ntime_block -
+                self._ntime_overlap) * self.delta_t_native * nblocks_fetched
+        start_of_next_chunk = self.start_time + (self._ntime_block -
+                self._ntime_overlap) * self.delta_t_native * (nblocks_fetched + 1)
+        end_of_chunk = start_of_chunk + self._ntime_block * self.delta_t_native
+        #start_of_chunk = self.last_time0 + self.delta_t_native * self.ntime_chunk
+        #end_of_chunk = self.last_time0 + self.delta_t_native * self.ntime_chunk * 2
+        # Read a bit extra, since we will be buffering the overlap anyway.
+        last_ind = np.searchsorted(self._stream.time, end_of_chunk +
+                self._ntime_overlap / 10)
+        ntime_read = last_ind - self._stream.current_time_ind
+
+        datasets = self._stream.yield_chunk(ntime_read)
+        time = datasets['time']
+        intensity = datasets['intensity']
+        weights = datasets['weight']
+        data, weights = _format_intensity_weights(intensity, weights)
+
+        # Copy data into buffered data and new buffer.
+        this_data = self._next_data
+        self._next_data = np.zeros((self.nfreq, self._ntime_block),
+                dtype=np.float32)
+
+        _align_copy_data(time, data, start_of_chunk, self._delta_t_native,
+                this_data)
+        _align_copy_data(time, data, start_of_next_chunk, self._delta_t_native,
+                self._next_data)
+
+        self._nblocks_fetched += 1
+        return start_of_chunk, this_data
+
+
+def _align_copy_data(time, data, buf_start, buf_dt, buf):
+    if len(data.shape) != 2 or len(buf.shape) != 2:
+        raise ValueError()
+    if data.shape[0] != buf.shape[0]:
+        raise ValueError()
+    if data.shape[1] != len(time):
+        raise ValueError()
+
+    buf_ntime = buf.shape[1]
+
+    inds = np.round((time - buf_star) / buf_dt).astype(int)
+    data_start = np.where(inds >= 0)[0][0]
+    data_end = np.where(inds < buf_ntime)[0][-1]
+    # XXX horribly inefficient.
+    buf[:,inds[data_start:data_end]] = data[:,data_start:data_end]
+
+
+
+def _format_intensity_weights(intensity, weights):
+    # XXX -LIAM- This assumes uint8 weights scaled to 128. I don't think this is true
+    # anymore.
+    in_shape = intensity.shape
+    data = np.empty((in_shape[0], in_shape[2]), dtype=np.float32)
+    weights_new = np.empty_like(data)
+    data[:,:] = intensity[:,0,:]
+    data += intensity[:,1,:]
+    # Taking care not to overflow.
+    weights_new[:] = weights[:,0,:]
+    weights_new += weights[:,1,:]
+    # Mask data with less than 50% weight.
+    weights_new[np.logical_or(weights[:,0,:] < 128, weights[:,1,:] < 128)] = 0
+    # Normalize.
+    weights_new /= 255 * 2
+    return data, weights_new
+
+
+class DiskManager(manager.Manager):
+
+    datasource_class = DiskSource
+
+    def __init__(self, datadir, **kwargs):
+        # This overwrites some of the defaults in burst_search.
+        parameters = dict(PARAMETER_DEFAULTS)
+        parameters.update(kwargs)
+        super(Manager, self).__init__(
+                datadir,
+                **parameters
+                )
+
+
