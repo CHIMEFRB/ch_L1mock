@@ -182,6 +182,8 @@ class DiskSource(datasource.DataSource):
         ntime_overlap = int(np.ceil(ntime_overlap / gran) * gran)
         self._ntime_block = ntime_block
         self._ntime_overlap = ntime_overlap
+        self._next_data = np.zeros((self.nfreq, self._ntime_block),
+                dtype=np.float32)
 
         self._nblocks_fetched = 0
 
