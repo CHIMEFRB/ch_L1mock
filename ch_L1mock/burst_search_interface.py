@@ -7,6 +7,7 @@ from Queue import Queue
 
 import numpy as np
 from burst_search import datasource, manager, preprocess
+from ch_frb_io import stream as io
 
 import constants
 
@@ -155,7 +156,7 @@ class Manager(manager.Manager):
 class DiskSource(datasource.DataSource):
 
     def __init__(self, datadir, **kwargs):
-        super(DataSource, self).__init__(
+        super(DiskSource, self).__init__(
                 source=datadir,
                 **kwargs
                 )
@@ -166,8 +167,8 @@ class DiskSource(datasource.DataSource):
         if not np.allclose(np.diff(freq), delta_f):
             raise ValueError("Frequencies not uniformly spaced")
 
-        self._delta_f = delta_f
-        self._freq0 = freq[0]
+        self._delta_f = delta_f / 1e6
+        self._freq0 = freq[0] / 1e6
         self._nfreq = len(freq)
         self._delta_t_native = np.median(np.diff(self._stream.time))
 
@@ -200,15 +201,15 @@ class DiskSource(datasource.DataSource):
 
     def get_next_block_native(self):
         start_of_chunk = self.start_time + (self._ntime_block -
-                self._ntime_overlap) * self.delta_t_native * nblocks_fetched
+                self._ntime_overlap) * self._delta_t_native * self.nblocks_fetched
         start_of_next_chunk = self.start_time + (self._ntime_block -
-                self._ntime_overlap) * self.delta_t_native * (nblocks_fetched + 1)
-        end_of_chunk = start_of_chunk + self._ntime_block * self.delta_t_native
+                self._ntime_overlap) * self._delta_t_native * (self.nblocks_fetched + 1)
+        end_of_chunk = start_of_chunk + self._ntime_block * self._delta_t_native
         #start_of_chunk = self.last_time0 + self.delta_t_native * self.ntime_chunk
         #end_of_chunk = self.last_time0 + self.delta_t_native * self.ntime_chunk * 2
         # Read a bit extra, since we will be buffering the overlap anyway.
         last_ind = np.searchsorted(self._stream.time, end_of_chunk +
-                self._ntime_overlap / 10)
+                self._ntime_overlap * self._delta_t_native / 10)
         ntime_read = last_ind - self._stream.current_time_ind
 
         datasets = self._stream.yield_chunk(ntime_read)
@@ -221,6 +222,7 @@ class DiskSource(datasource.DataSource):
         this_data = self._next_data
         self._next_data = np.zeros((self.nfreq, self._ntime_block),
                 dtype=np.float32)
+
 
         _align_copy_data(time, data, start_of_chunk, self._delta_t_native,
                 this_data)
@@ -241,7 +243,7 @@ def _align_copy_data(time, data, buf_start, buf_dt, buf):
 
     buf_ntime = buf.shape[1]
 
-    inds = np.round((time - buf_star) / buf_dt).astype(int)
+    inds = np.round((time - buf_start) / buf_dt).astype(int)
     data_start = np.where(inds >= 0)[0][0]
     data_end = np.where(inds < buf_ntime)[0][-1]
     # XXX horribly inefficient.
@@ -261,7 +263,8 @@ def _format_intensity_weights(intensity, weights):
     weights_new[:] = weights[:,0,:]
     weights_new += weights[:,1,:]
     # Mask data with less than 50% weight.
-    weights_new[np.logical_or(weights[:,0,:] < 128, weights[:,1,:] < 128)] = 0
+    # XXX
+    #weights_new[np.logical_or(weights[:,0,:] < 128, weights[:,1,:] < 128)] = 0
     # Normalize.
     weights_new /= 255 * 2
     return data, weights_new
@@ -275,7 +278,7 @@ class DiskManager(manager.Manager):
         # This overwrites some of the defaults in burst_search.
         parameters = dict(PARAMETER_DEFAULTS)
         parameters.update(kwargs)
-        super(Manager, self).__init__(
+        super(DiskManager, self).__init__(
                 datadir,
                 **parameters
                 )
